@@ -1,0 +1,42 @@
+services:
+  web:
+    image: nginx:alpine
+    container_name: solusvires_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/ssl/solusvires:ro
+    depends_on:
+      - api
+
+  api:
+    build: ./backend
+    container_name: solusvires_api
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    expose:
+      - "8000"
+    volumes:
+      - ./backend/app:/app
+
+  db:
+    image: postgres:16-alpine
+    container_name: solusvires_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=solusvires
+      - POSTGRES_USER=solusvires
+      - POSTGRES_PASSWORD=CHANGE_ME_STRONG
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+volumes:
+  db_data:
+

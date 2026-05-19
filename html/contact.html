@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Contact – Solus Vires</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+  <header>
+    <div class="brand">Solus Vires</div>
+    <nav>
+      <a href="/resources.html">Resources</a>
+      <a href="/safety.html">Safety Planning</a>
+      <a href="/legal.html">Legal & Rights</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <button class="quick-exit" id="quick-exit-btn">Quick Exit</button>
+  </header>
+
+  <main>
+    <div class="card">
+      <h1>Contact (Optional & Discreet)</h1>
+      <p style="color:#9ca3af;">
+        Only share information that feels safe. You can use an alias and a safe email/number.
+      </p>
+
+      <form id="contact-form">
+        <label>
+          Safe name or alias (optional)
+          <input type="text" name="safe_name" autocomplete="off">
+        </label>
+        <label>
+          Safe contact (email, text app, etc.) – optional
+          <input type="text" name="safe_contact" autocomplete="off">
+        </label>
+        <label>
+          Message
+          <textarea name="message" rows="5" required></textarea>
+        </label>
+        <button type="submit" class="btn primary">Send</button>
+        <p id="status" style="font-size:0.85rem; margin-top:0.75rem;"></p>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    If you are in immediate danger, call 911 (or your local emergency number).
+  </footer>
+
+  <script>
+    function quickExit() {
+      const safeUrl = "https://www.weather.com/";
+      window.location.replace(safeUrl);
+    }
+    document.getElementById("quick-exit-btn").addEventListener("click", quickExit);
+
+    const form = document.getElementById("contact-form");
+    const status = document.getElementById("status");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      status.textContent = "Sending…";
+      const formData = new FormData(form);
+
+      try {
+        const res = await fetch("/api/contact", {
+          method: "POST",
+          body: formData
+        });
+        if (res.ok) {
+          status.textContent = "Message sent. If it’s safe, you may want to clear your history.";
+          form.reset();
+        } else {
+          status.textContent = "Something went wrong. Please try again if it’s safe.";
+        }
+      } catch (err) {
+        status.textContent = "Unable to send right now.";
+      }
+    });
+  </script>
+</body>
+</html>
