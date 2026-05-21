@@ -4,170 +4,65 @@
   <meta charset="utf-8">
   <title>Solus Vires</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root {
-      --bg: #050816;
-      --card: #0b1220;
-      --accent: #a5b4fc;
-      --text: #e5e7eb;
-      --muted: #9ca3af;
-      --danger: #fecaca;
-    }
-    * { box-sizing: border-box; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.75rem 1.5rem;
-      background: rgba(15,23,42,0.95);
-      border-bottom: 1px solid rgba(148,163,184,0.35);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    .brand {
-      font-size: 0.8rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-    nav a {
-      color: var(--text);
-      text-decoration: none;
-      margin-left: 1rem;
-      font-size: 0.9rem;
-    }
-    nav a:hover { text-decoration: underline; }
-
-    .quick-exit {
-      border: none;
-      padding: 0.45rem 0.9rem;
-      border-radius: 999px;
-      background: #fee2e2;
-      color: #991b1b;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    main {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 2rem 1rem 3rem;
-    }
-    .card {
-      max-width: 640px;
-      width: 100%;
-      padding: 2rem;
-      border-radius: 1.5rem;
-      background: rgba(15,23,42,0.98);
-      box-shadow: 0 28px 60px rgba(0,0,0,0.6);
-      border: 1px solid rgba(148,163,184,0.3);
-    }
-    .tagline {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: var(--accent);
-      margin-bottom: 0.5rem;
-    }
-    h1 {
-      margin: 0 0 1rem;
-      font-size: 2rem;
-    }
-    p {
-      margin: 0.5rem 0;
-      line-height: 1.6;
-      color: var(--muted);
-    }
-    .cta-row {
-      margin-top: 1.5rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-    .btn {
-      border-radius: 999px;
-      padding: 0.6rem 1.2rem;
-      border: 1px solid rgba(148,163,184,0.6);
-      background: transparent;
-      color: var(--text);
-      font-size: 0.9rem;
-      cursor: pointer;
-      text-decoration: none;
-    }
-    .btn.primary {
-      background: linear-gradient(135deg,#4f46e5,#22d3ee);
-      border: none;
-      color: white;
-    }
-    footer {
-      padding: 0.75rem 1.5rem;
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-align: center;
-    }
-  </style>
+  <meta name="description" content="Solus Vires is a privacy-conscious safety resource platform currently in development.">
+  <link rel="stylesheet" href="/shared.css">
 </head>
 <body>
   <header>
-    <div class="brand">Solus Vires</div>
-    <nav>
+    <a class="brand" href="/">Solus Vires</a>
+    <nav aria-label="Primary">
+      <a href="/" aria-current="page">Coming Soon</a>
       <a href="/resources.html">Resources</a>
-      <a href="/safety.html">Safety Planning</a>
-      <a href="/legal.html">Legal & Rights</a>
+      <a href="/safety.html">Safety</a>
+      <a href="/emergency.html">Emergency</a>
       <a href="/contact.html">Contact</a>
     </nav>
     <button class="quick-exit" id="quick-exit-btn">Quick Exit</button>
   </header>
 
   <main>
-    <div class="card">
-      <div class="tagline">Solus Vires</div>
-      <h1>Strength, Safety, and Support</h1>
-      <p>This site is being built as a safe, discreet resource hub for people affected by domestic abuse.</p>
-      <p>Here you will find crisis contacts, safety planning tools, and practical information to help you navigate difficult situations as safely as possible.</p>
-      <div class="cta-row">
-        <a class="btn primary" href="/resources.html">See Help & Resources</a>
-        <a class="btn" href="/safety.html">Plan for Safety</a>
+    <section class="hero launch-hero">
+      <div>
+        <p class="eyebrow">Launching soon</p>
+        <h1>Solus Vires is on the way.</h1>
+        <p>A discreet, privacy-conscious safety resource platform is being built for survivors, families, and trusted advocacy partners.</p>
+        <div class="actions">
+          <a class="btn primary" href="/contact.html">Get Updates</a>
+          <a class="btn" href="/resources.html">View Current Resources</a>
+        </div>
       </div>
-    </div>
+      <aside class="urgent-panel" aria-label="Immediate danger guidance">
+        <h2>Need help now?</h2>
+        <p>Solus Vires is not live as an emergency service. If you are in immediate danger, call 911 if it is safe to do so.</p>
+        <a class="btn danger" href="/emergency.html">Emergency Options</a>
+      </aside>
+    </section>
+
+    <section class="band alt">
+      <div class="section-head">
+        <h2>What is coming</h2>
+        <p>The first release is focused on practical information, safer access patterns, and clear boundaries around urgent support.</p>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <h3>Resource guidance</h3>
+          <p>Organized information for crisis lines, shelters, legal aid, financial support, children, and digital safety.</p>
+        </article>
+        <article class="card">
+          <h3>Safety planning</h3>
+          <p>Clear planning tools for safer exits, documentation, device privacy, and preparation before high-risk moments.</p>
+        </article>
+        <article class="card">
+          <h3>Partner workflows</h3>
+          <p>A future foundation for vetted advocates, local organizations, and responsible referral workflows.</p>
+        </article>
+      </div>
+    </section>
   </main>
 
   <footer>
-    If you are in immediate danger, call 911 (or your local emergency number).
+    Solus Vires is not a replacement for emergency services, legal counsel, medical care, or licensed advocacy support.
   </footer>
-
-  <script>
-    // Quick exit – sends user to a harmless page and replaces history entry.
-    function quickExit() {
-      const safeUrl = "https://www.weather.com/";
-      window.location.replace(safeUrl);
-    }
-    document.getElementById("quick-exit-btn").addEventListener("click", quickExit);
-    // Optional: allow pressing ESC twice quickly to exit
-    let lastEsc = 0;
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        const now = Date.now();
-        if (now - lastEsc < 600) {
-          quickExit();
-        }
-        lastEsc = now;
-      }
-    });
-  </script>
+  <script src="/shared.js"></script>
 </body>
 </html>
-

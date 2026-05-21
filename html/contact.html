@@ -2,79 +2,81 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Contact – Solus Vires</title>
+  <title>Contact - Solus Vires</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/shared.css">
 </head>
 <body>
   <header>
-    <div class="brand">Solus Vires</div>
-    <nav>
+    <a class="brand" href="/">Solus Vires</a>
+    <nav aria-label="Primary">
       <a href="/resources.html">Resources</a>
-      <a href="/safety.html">Safety Planning</a>
-      <a href="/legal.html">Legal & Rights</a>
-      <a href="/contact.html">Contact</a>
+      <a href="/safety.html">Safety</a>
+      <a href="/legal.html">Legal</a>
+      <a href="/partners.html">Partners</a>
+      <a href="/emergency.html">Emergency</a>
+      <a href="/contact.html" aria-current="page">Contact</a>
     </nav>
     <button class="quick-exit" id="quick-exit-btn">Quick Exit</button>
   </header>
 
-  <main>
-    <div class="card">
-      <h1>Contact (Optional & Discreet)</h1>
-      <p style="color:#9ca3af;">
-        Only share information that feels safe. You can use an alias and a safe email/number.
-      </p>
+  <main class="band">
+    <div class="section-head">
+      <h1>Contact discreetly</h1>
+      <p>Only share what feels safe. Use an alias if needed, and do not include details that could put you at risk if someone else sees this device.</p>
+    </div>
 
+    <div class="notice">
+      This form currently confirms receipt only. It should be connected to a vetted, secure response workflow before being used for urgent help.
+    </div>
+
+    <section class="card">
       <form id="contact-form">
         <label>
-          Safe name or alias (optional)
+          Safe name or alias
           <input type="text" name="safe_name" autocomplete="off">
         </label>
         <label>
-          Safe contact (email, text app, etc.) – optional
-          <input type="text" name="safe_contact" autocomplete="off">
+          Safe contact method
+          <input type="text" name="safe_contact" autocomplete="off" placeholder="Only if it is safe">
         </label>
         <label>
           Message
-          <textarea name="message" rows="5" required></textarea>
+          <textarea name="message" rows="6" maxlength="3000" required></textarea>
         </label>
-        <button type="submit" class="btn primary">Send</button>
-        <p id="status" style="font-size:0.85rem; margin-top:0.75rem;"></p>
+        <button type="submit" class="btn primary">Send Message</button>
+        <p id="status" class="status" aria-live="polite"></p>
       </form>
-    </div>
+    </section>
   </main>
 
   <footer>
-    If you are in immediate danger, call 911 (or your local emergency number).
+    In immediate danger, call 911 if it is safe. This form is not monitored as an emergency channel.
   </footer>
-
+  <script src="/shared.js"></script>
   <script>
-    function quickExit() {
-      const safeUrl = "https://www.weather.com/";
-      window.location.replace(safeUrl);
-    }
-    document.getElementById("quick-exit-btn").addEventListener("click", quickExit);
-
     const form = document.getElementById("contact-form");
     const status = document.getElementById("status");
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      status.textContent = "Sending…";
-      const formData = new FormData(form);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.textContent = "Sending...";
 
       try {
-        const res = await fetch("/api/contact", {
+        const response = await fetch("/api/contact", {
           method: "POST",
-          body: formData
+          body: new FormData(form)
         });
-        if (res.ok) {
-          status.textContent = "Message sent. If it’s safe, you may want to clear your history.";
+        const data = await response.json();
+
+        if (response.ok && data.ok) {
+          status.textContent = data.message;
           form.reset();
-        } else {
-          status.textContent = "Something went wrong. Please try again if it’s safe.";
+          return;
         }
-      } catch (err) {
+
+        status.textContent = data.detail || "Unable to send right now.";
+      } catch (error) {
         status.textContent = "Unable to send right now.";
       }
     });
