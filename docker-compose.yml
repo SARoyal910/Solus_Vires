@@ -52,6 +52,13 @@ services:
       - db_data:/var/lib/postgresql/data
     expose:
       - "5432"
+    ports:
+      # Loopback-only, on a non-default port so it never collides with a
+      # locally-installed Postgres and is never reachable off this machine
+      # even if this compose file is run on a public host. Lets a local
+      # (non-Docker) `uvicorn` dev server share this exact database instead
+      # of silently talking to a different, unmigrated Postgres on :5432.
+      - "127.0.0.1:5433:5432"
 
 volumes:
   db_data:

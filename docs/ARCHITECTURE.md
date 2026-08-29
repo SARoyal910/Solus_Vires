@@ -55,7 +55,7 @@ Status against this list as of the accounts + notes MVP:
 - Add audit logging that avoids storing unsafe content. **Not done** — deliberately deferred; with zero-knowledge content there's little to log beyond what DB rows already imply, and logging things like login IPs is itself a risk to design carefully, not add by default.
 - Add database migrations and backup/restore testing. **Migrations done** (Alembic, `backend/migrations/`). Backup/restore testing **not done**.
 - Add rate limiting, abuse detection, and alerting. **Partially done** — basic login lockout/backoff exists; no rate limiting, CAPTCHA, or abuse alerting.
-- Define retention and deletion policies. **Not done** — evidence entries/case profile can be deleted by the user, but there's no defined retention policy or account-deletion flow yet.
+- Define retention and deletion policies. **Partially done** — evidence entries/case profile/trusted contacts can each be deleted individually, and `POST /api/auth/delete-account` (password-confirmed) now permanently deletes the account and everything tied to it in one step, relying on `ondelete="CASCADE"` across every child table. Still not done: a defined *retention window* for data the user hasn't manually deleted (i.e., how long is it kept by default, not just "can it be deleted").
 - Verify partner organizations before access. Not applicable yet — no partner-facing access exists.
 - Get legal review for privacy, mandatory reporting, and emergency claims. **Not done** — this remains a hard prerequisite before real-world use with actual survivors.
 - Validate emergency features with public-safety and advocacy partners. Not applicable yet — no emergency features exist.

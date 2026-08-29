@@ -33,3 +33,11 @@ class RecoverResponse(BaseModel):
 class MeResponse(BaseModel):
     username: str
     evidence_pin_set: bool
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+class DeleteAccountResponse(BaseModel):
+    ok: bool

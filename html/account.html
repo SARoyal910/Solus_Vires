@@ -103,6 +103,24 @@
         </div>
         <p id="account-status" class="status" aria-live="polite"></p>
       </article>
+
+      <article class="card" id="delete-account-card">
+        <h2>Delete my account</h2>
+        <p>This permanently deletes your account, your encrypted notes and case profile, and every trusted check-in contact you've added. This cannot be undone, not even by us.</p>
+        <button type="button" class="btn danger" id="show-delete-btn">Delete my account</button>
+        <form id="delete-account-form" hidden>
+          <label>
+            Confirm your password
+            <input type="password" name="password" autocomplete="current-password" required>
+          </label>
+          <label class="progress-check">
+            <input type="checkbox" id="delete-confirm-check" required>
+            I understand this is permanent and cannot be undone.
+          </label>
+          <button type="submit" class="btn danger">Permanently delete my account</button>
+          <p id="delete-status" class="status" aria-live="polite"></p>
+        </form>
+      </article>
     </section>
 
     <article class="card" id="recovery-codes-card" hidden>
@@ -267,6 +285,35 @@
     document.getElementById("logout-all-btn").addEventListener("click", async () => {
       await fetch("/api/auth/logout-all", { method: "POST", credentials: "include" });
       await refreshSession();
+    });
+
+    document.getElementById("show-delete-btn").addEventListener("click", (event) => {
+      document.getElementById("delete-account-form").hidden = false;
+      event.target.hidden = true;
+    });
+
+    document.getElementById("delete-account-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const status = document.getElementById("delete-status");
+      const form = event.target;
+      status.textContent = "Deleting...";
+      try {
+        const res = await fetch("/api/auth/delete-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ password: form.password.value }),
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          form.reset();
+          await refreshSession();
+          return;
+        }
+        status.textContent = data.detail || "Unable to delete your account.";
+      } catch (e) {
+        status.textContent = "Unable to delete your account right now.";
+      }
     });
 
     refreshSession();

@@ -5,6 +5,8 @@ from ..core.db import get_db
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.auth import (
+    DeleteAccountRequest,
+    DeleteAccountResponse,
     LoginRequest,
     LoginResponse,
     MeResponse,
@@ -65,3 +67,14 @@ async def recover(
 @router.get("/me", response_model=MeResponse)
 async def me(user: User = Depends(get_current_user)) -> MeResponse:
     return MeResponse(username=user.username, evidence_pin_set=user.evidence_salt is not None)
+
+
+@router.post("/delete-account", response_model=DeleteAccountResponse)
+async def delete_account(
+    payload: DeleteAccountRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> DeleteAccountResponse:
+    service.delete_account(db, response, user, payload)
+    return DeleteAccountResponse(ok=True)

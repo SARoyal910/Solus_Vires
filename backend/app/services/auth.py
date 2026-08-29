@@ -16,7 +16,7 @@ from ..core.security import (
     verify_secret,
 )
 from ..models.auth import RecoveryCode, User
-from ..schemas.auth import LoginRequest, RecoverRequest, RegisterRequest
+from ..schemas.auth import DeleteAccountRequest, LoginRequest, RecoverRequest, RegisterRequest
 
 logger = logging.getLogger("solusvires.auth")
 
@@ -95,3 +95,22 @@ class AuthService:
         delete_all_sessions(db, str(user.id))
         response.delete_cookie("sv_session", path="/")
         logger.info("account_recovered")
+
+    def delete_account(
+        self, db: Session, response: Response, user: User, payload: DeleteAccountRequest
+    ) -> None:
+        """Permanently deletes the account and everything tied to it.
+
+        Foreign keys on every child table (sessions, recovery codes,
+        evidence/case profile, trusted contacts and their push
+        subscriptions, the check-in schedule) are ``ondelete="CASCADE"``, so
+        deleting the user row is genuinely sufficient - there is nothing left
+        behind for this account anywhere in the database.
+        """
+        if not verify_secret(user.password_hash, payload.password):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password.")
+
+        db.delete(user)
+        db.commit()
+        response.delete_cookie("sv_session", path="/")
+        logger.info("account_deleted")

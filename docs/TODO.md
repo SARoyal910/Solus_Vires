@@ -20,7 +20,7 @@ Actionable punch list, pulled together from the "not done" / "not yet verified" 
 
 - [ ] Rate limiting and abuse detection — currently only basic login lockout exists; no CAPTCHA, no rate limits on the public check-in invite endpoints (`/api/checkin/invite/{token}/*`)
 - [ ] Backup/restore testing for Postgres (migrations exist; restore has never been exercised)
-- [ ] Retention/deletion policy — evidence entries and trusted contacts can be deleted by the user, but there's no defined retention window or full account-deletion flow
+- [ ] Retention *window* policy — full account-deletion now exists (see below), but there's still no defined default retention period for data a user hasn't manually deleted
 - [ ] Audit logging — deliberately deferred (logging login IPs etc. is itself a risk to design carefully, not bolt on) but worth a real decision, not just a default of "nothing"
 - [ ] MFA — single-factor auth only right now
 
@@ -35,4 +35,8 @@ Actionable punch list, pulled together from the "not done" / "not yet verified" 
 
 - [ ] Let a survivor resend an invite to a contact who self-revoked without having to delete and re-add them (currently blocked with a 409 — workable since the contact can still re-accept their original link, but a rough edge)
 - [ ] A history/audit view for the survivor of when alerts actually fired
-- [ ] Local (non-Docker) dev server story is currently a bit rough — the checked-in `.env` local `DATABASE_URL` and the Docker Compose Postgres are two different databases on this machine; worth deciding on one dev workflow
+
+## Done since last pass
+
+- [x] Local (non-Docker) dev server now shares the exact same Postgres as Docker — `docker-compose.yml` publishes `db` on `127.0.0.1:5433` (loopback-only, non-default port so it never collides with a locally-installed Postgres), and `.env`/`.env.example`'s `DATABASE_URL` point there. Previously the local `uvicorn` workflow silently connected to a different, unmigrated Postgres.
+- [x] Full account-deletion flow — `POST /api/auth/delete-account` (password re-confirmation required) permanently deletes the user and everything tied to it (notes, case profile, trusted contacts, push subscriptions, sessions) via cascading foreign keys. UI on `account.html` behind an explicit reveal + checkbox, not a single accidental click. Verified end-to-end against the real Docker stack: wrong password correctly rejected with nothing deleted, correct password deletes everything, session dies immediately, old credentials rejected afterward.
