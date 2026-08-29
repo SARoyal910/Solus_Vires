@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Check-in Invite - Solus Vires</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 2 L24 6 V13 C24 19.5 19.8 24.5 14 26 C8.2 24.5 4 19.5 4 13 V6 Z" fill="url(#brand-grad)"/><path d="M14 9.3 L15.6 12.5 L19.1 13 L16.5 15.4 L17.2 18.9 L14 17.2 L10.8 18.9 L11.5 15.4 L8.9 13 L12.4 12.5 Z" fill="#fff" fill-opacity="0.94"/><defs><linearGradient id="brand-grad" x1="4" y1="2" x2="24" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#4f46e5"/><stop offset="1" stop-color="#0d9488"/></linearGradient></defs></svg>Solus Vires</a>
+    <nav aria-label="Primary">
+      <a href="/resources.html">Resources</a>
+      <a href="/safety.html">Safety</a>
+    </nav>
+    <button class="quick-exit" id="quick-exit-btn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M11 8H5m6 0-2.5-2.5M11 8l-2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Quick Exit</button>
+  </header>
+
+  <main class="band">
+    <div class="section-head" id="loading-state">
+      <h1>Loading...</h1>
+    </div>
+
+    <div id="invalid-state" hidden>
+      <div class="section-head">
+        <h1>This link isn't valid</h1>
+        <p>It may have been mistyped, or the person who sent it removed you as a check-in contact.</p>
+      </div>
+    </div>
+
+    <div id="invite-state" hidden>
+      <div class="section-head">
+        <h1><span id="username-pending"></span> invited you as a safety check-in contact</h1>
+        <p>This means: if they set up a check-in schedule and miss it, you'll get an alert so you can check on them. You won't receive anything unless that happens.</p>
+      </div>
+      <article class="card">
+        <div class="actions">
+          <button type="button" class="btn primary" id="accept-btn">Accept</button>
+          <button type="button" class="btn" id="decline-btn">Decline</button>
+        </div>
+        <p id="respond-status" class="status" aria-live="polite"></p>
+      </article>
+    </div>
+
+    <div id="accepted-state" hidden>
+      <div class="section-head">
+        <h1>You're signed up for <span id="username-accepted"></span>'s check-ins</h1>
+        <p>You'll only hear from this page if they miss a scheduled check-in.</p>
+      </div>
+
+      <div class="safe-note" id="already-subscribed-note" hidden>
+        Push notifications are already enabled on this device.
+      </div>
+
+      <article class="card" id="push-setup-card">
+        <h2>Enable push notifications</h2>
+        <p>Get an instant alert on this device if a check-in is missed. You can also rely on email alone if you'd rather skip this.</p>
+        <p class="status" id="ios-note" hidden>On iPhone or iPad: tap the Share icon, choose "Add to Home Screen," then open Solus Vires from your home screen and tap Enable below.</p>
+        <div class="actions">
+          <button type="button" class="btn primary" id="enable-push-btn">Enable push notifications</button>
+        </div>
+        <p id="push-status" class="status" aria-live="polite"></p>
+      </article>
+
+      <article class="card">
+        <h2>Stop receiving alerts</h2>
+        <p>You can opt out at any time. This removes you as a check-in contact entirely.</p>
+        <button type="button" class="btn danger" id="stop-btn">Stop being a check-in contact</button>
+      </article>
+    </div>
+
+    <div id="declined-state" hidden>
+      <div class="section-head">
+        <h1>You declined this invite</h1>
+        <p><span id="username-declined"></span> won't be able to send you check-in alerts.</p>
+      </div>
+      <button type="button" class="btn primary" id="reaccept-btn">Changed your mind? Accept now</button>
+    </div>
+
+    <div id="revoked-state" hidden>
+      <div class="section-head">
+        <h1>You're no longer a check-in contact</h1>
+        <p>You won't receive any more alerts for <span id="username-revoked"></span>.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    This page manages check-in alerts only. If you're worried about someone right now, use <a href="/emergency.html">Emergency options</a> or call 911.
+  </footer>
+  <script src="/shared.js"></script>
+  <script src="/checkin-invite.js"></script>
+</body>
+</html>

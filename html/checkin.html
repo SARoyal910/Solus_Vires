@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Check-ins - Solus Vires</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 2 L24 6 V13 C24 19.5 19.8 24.5 14 26 C8.2 24.5 4 19.5 4 13 V6 Z" fill="url(#brand-grad)"/><path d="M14 9.3 L15.6 12.5 L19.1 13 L16.5 15.4 L17.2 18.9 L14 17.2 L10.8 18.9 L11.5 15.4 L8.9 13 L12.4 12.5 Z" fill="#fff" fill-opacity="0.94"/><defs><linearGradient id="brand-grad" x1="4" y1="2" x2="24" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#4f46e5"/><stop offset="1" stop-color="#0d9488"/></linearGradient></defs></svg>Solus Vires</a>
+    <nav aria-label="Primary">
+      <a href="/resources.html">Resources</a>
+      <a href="/safety.html">Safety</a>
+      <a href="/recovery.html">Recovery</a>
+      <a href="/legal.html">Legal</a>
+      <a href="/partners.html">Partners</a>
+      <a href="/emergency.html">Emergency</a>
+      <a href="/account.html">Account</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <button class="quick-exit" id="quick-exit-btn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M11 8H5m6 0-2.5-2.5M11 8l-2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Quick Exit</button>
+  </header>
+
+  <main>
+    <section id="signed-out-view" class="band" hidden>
+      <div class="section-head">
+        <h1>Check-ins</h1>
+        <p>You need to be logged in to use this page.</p>
+      </div>
+      <a class="btn primary" href="/account.html">Go to Account</a>
+    </section>
+
+    <section id="signed-in-view" hidden>
+      <div class="band">
+        <div class="section-head">
+          <p class="eyebrow">Opt-in, off by default</p>
+          <h1>"I'm OK" check-ins</h1>
+          <p>If you miss a scheduled check-in, the trusted contacts you've added below get an alert. Nothing is sent unless you turn this on and then miss a check-in.</p>
+        </div>
+
+        <article class="card">
+          <h2>Your schedule</h2>
+          <form id="schedule-form">
+            <label>
+              <span>Check in every</span>
+              <select name="interval_hours">
+                <option value="12">12 hours</option>
+                <option value="24" selected>24 hours</option>
+                <option value="48">2 days</option>
+                <option value="72">3 days</option>
+                <option value="168">1 week</option>
+              </select>
+            </label>
+            <label>
+              <span>Grace period before an alert goes out</span>
+              <select name="grace_hours">
+                <option value="2">2 hours</option>
+                <option value="6" selected>6 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24">24 hours</option>
+              </select>
+            </label>
+            <label class="progress-check">
+              <input type="checkbox" name="active" id="schedule-active">
+              Turn on check-in alerts
+            </label>
+            <button type="submit" class="btn primary">Save schedule</button>
+            <p id="schedule-status" class="status" aria-live="polite"></p>
+          </form>
+        </article>
+
+        <article class="card" id="checkin-now-card" hidden>
+          <h2>You're being tracked for check-ins</h2>
+          <p id="deadline-text"></p>
+          <button type="button" class="btn primary" id="checkin-now-btn">I'm OK — check in now</button>
+          <p id="checkin-status" class="status" aria-live="polite"></p>
+        </article>
+      </div>
+
+      <div class="band alt">
+        <div class="section-head">
+          <p class="eyebrow">Who gets alerted</p>
+          <h2>Trusted contacts</h2>
+          <p>They'll see your username, not this device or what you've written elsewhere on the site. They must accept before they can receive anything.</p>
+        </div>
+
+        <article class="card">
+          <h2>Add a trusted contact</h2>
+          <form id="add-contact-form">
+            <label>
+              What you call them (only you see this)
+              <input type="text" name="nickname" maxlength="80" required autocomplete="off">
+            </label>
+            <label>
+              Their email
+              <input type="email" name="contact_email" required autocomplete="off">
+            </label>
+            <button type="submit" class="btn primary">Send invite</button>
+            <p id="add-contact-status" class="status" aria-live="polite"></p>
+          </form>
+        </article>
+
+        <div id="contacts-list" class="grid two"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Quick Exit is available, but it cannot erase browser, network, or device history.
+  </footer>
+  <script src="/shared.js"></script>
+  <script src="/checkin.js"></script>
+</body>
+</html>

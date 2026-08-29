@@ -2,18 +2,19 @@
 
 ## Current Phase
 
-The current codebase is a Phase 1 public resource foundation, plus an early Phase 2 slice: accounts and a private, client-side-encrypted notes/evidence log. It is intended to serve public pages, basic contact intake, partner-facing product direction, and (new) a minimal survivor account system.
+The current codebase is a Phase 1 public resource foundation, plus Phase 2: accounts, a private client-side-encrypted notes/evidence log, and a trusted-contact "I'm OK" check-in/alert system. It is intended to serve public pages, basic contact intake, partner-facing product direction, and a minimal survivor account system.
 
 ## Backend
 
-- FastAPI app factory in `backend/app/main.py`
-- API routers in `backend/app/api` (`health`, `contact`, `auth`, `evidence`)
+- FastAPI app factory in `backend/app/main.py` — also owns the background check-in alert loop (an `asyncio` task started in the app's `lifespan`, no extra scheduler dependency)
+- API routers in `backend/app/api` (`health`, `contact`, `auth`, `evidence`, `checkin`)
 - Runtime configuration in `backend/app/core/config.py`
 - Security headers in `backend/app/core/middleware.py`
 - Database engine/session in `backend/app/core/db.py`; password hashing, opaque session tokens, and lockout logic in `backend/app/core/security.py`
-- SQLAlchemy models in `backend/app/models/` (`auth.py`: `User`, `Session`, `RecoveryCode`; `evidence.py`: `CaseProfile`, `EvidenceEntry`)
+- Web Push (VAPID) and Brevo transactional email send helpers in `backend/app/core/notifications.py` — both no-op with a log line, not an error, when unconfigured
+- SQLAlchemy models in `backend/app/models/` (`auth.py`: `User`, `Session`, `RecoveryCode`; `evidence.py`: `CaseProfile`, `EvidenceEntry`; `checkin.py`: `TrustedContact`, `PushSubscription`, `CheckinSchedule`)
 - Alembic migrations in `backend/migrations/`
-- Contact business logic in `backend/app/services/contact.py`; auth/evidence logic in `backend/app/services/auth.py` and `evidence.py`
+- Contact business logic in `backend/app/services/contact.py`; auth/evidence logic in `backend/app/services/auth.py` and `evidence.py`; check-in logic (including the HMAC-signed invite-token scheme — see `docs/CHECKIN.md`) in `backend/app/services/checkin.py`
 
 The contact service deliberately does not log survivor-provided message content. The evidence service goes further: it never receives plaintext at all — `CaseProfile`/`EvidenceEntry` rows store only client-encrypted ciphertext, so the server has no way to read, log, or hand over evidence content even if compelled to. Production intake for the plain contact form should still move to encrypted storage or a secure partner inbox with retention limits and audit logging.
 
@@ -24,15 +25,23 @@ Authentication uses opaque, DB-backed session tokens (not JWT) in an `httponly`/
 Static public pages live in `html/`:
 
 - `index.html`
-- `resources.html`
+- `resources.html` — categorized directory of verified, currently-operating national hotlines and support orgs (crisis/DV, tech safety, population-specific, financial abuse)
 - `safety.html`
-- `legal.html`
+- `legal.html` — verified free legal-aid organizations plus educational topic summaries
+- `recovery.html` — trauma-informed recovery framework (Herman's three-stage model), interactive grounding tools (box breathing, 5-4-3-2-1), and a verified free/low-cost mental-health resource directory
+- `recovery.js` — client-only interactive logic for the recovery tools; progress is tracked in `localStorage` only, never sent to the server
 - `partners.html`
-- `emergency.html`
+- `emergency.html` — 911/text-911 plus non-dispatch crisis lines (988, Crisis Text Line, National DV Hotline)
 - `contact.html`
 - `account.html` — registration, login, recovery-code display, logout
 - `log.html` — labeled "Notes" in navigation (deliberately generic); PIN-locked, client-side-encrypted notes and case-profile editor
 - `evidence-crypto.js` — dependency-free WebCrypto helpers (PBKDF2 key derivation + AES-GCM) used only by `log.html`
+- `checkin.html` — survivor-facing check-in schedule + trusted-contact management, linked from `account.html` and `emergency.html`, not from the main nav (same discoverability pattern as `log.html`)
+- `checkin-invite.html` — the public, token-authenticated page a trusted contact uses to accept/decline an invite and opt in to Web Push
+- `sw.js` — the Web Push service worker, registered only from the contact's browser
+- `checkin.js`, `checkin-invite.js` — plain JS for the two pages above; see `docs/CHECKIN.md`
+
+External links in `resources.html`, `legal.html`, `recovery.html`, and `emergency.html` were verified organization-by-organization (official `.org`/`.gov` domains, current phone/text numbers) rather than reconstructed from memory. A couple of deliberate caveats are called out in the copy itself: Open Path Collective is low-cost, not free; NAMI's HelpLine and the Eldercare Locator are not 24/7 crisis lines.
 
 These pages are served by FastAPI during local development and by nginx in the Docker stack.
 
@@ -51,7 +60,7 @@ Status against this list as of the accounts + notes MVP:
 - Get legal review for privacy, mandatory reporting, and emergency claims. **Not done** — this remains a hard prerequisite before real-world use with actual survivors.
 - Validate emergency features with public-safety and advocacy partners. Not applicable yet — no emergency features exist.
 
-Also intentionally not built: a trusted-contact "I'm OK" check-in/alert system (planned as the next phase), any public-facing registry of alleged abusers (rejected as a defamation/retaliation-safety risk — see README), file/photo evidence upload, and a disguised/skinned UI beyond generic page labeling.
+Also intentionally not built: real-time location sharing (a separate, larger feature than the check-in system above — deliberately not bundled in), any public-facing registry of alleged abusers (rejected as a defamation/retaliation-safety risk — see README), file/photo evidence upload, and a disguised/skinned UI beyond generic page labeling.
 
 ## Location and Emergency Features
 

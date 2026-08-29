@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Recovery & Wellness - Solus Vires</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Trauma-informed recovery tools, grounding exercises, and a directory of real, free mental health resources.">
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 2 L24 6 V13 C24 19.5 19.8 24.5 14 26 C8.2 24.5 4 19.5 4 13 V6 Z" fill="url(#brand-grad)"/><path d="M14 9.3 L15.6 12.5 L19.1 13 L16.5 15.4 L17.2 18.9 L14 17.2 L10.8 18.9 L11.5 15.4 L8.9 13 L12.4 12.5 Z" fill="#fff" fill-opacity="0.94"/><defs><linearGradient id="brand-grad" x1="4" y1="2" x2="24" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#4f46e5"/><stop offset="1" stop-color="#0d9488"/></linearGradient></defs></svg>Solus Vires</a>
+    <nav aria-label="Primary">
+      <a href="/resources.html">Resources</a>
+      <a href="/safety.html">Safety</a>
+      <a href="/recovery.html" aria-current="page">Recovery</a>
+      <a href="/legal.html">Legal</a>
+      <a href="/partners.html">Partners</a>
+      <a href="/emergency.html">Emergency</a>
+      <a href="/account.html">Account</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <button class="quick-exit" id="quick-exit-btn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M11 8H5m6 0-2.5-2.5M11 8l-2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Quick Exit</button>
+  </header>
+
+  <main>
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">Recovery &amp; wellness</p>
+        <h1>Healing isn't a straight line. These tools meet you wherever you are today.</h1>
+        <p>This page is educational, not a substitute for therapy or crisis care. If you're in immediate danger, use <a href="/emergency.html">Emergency options</a> first.</p>
+      </div>
+
+      <div class="safe-note">
+        Your progress on this page is stored only in this browser (never sent anywhere) and you can clear it any time. Nothing you type into the tools below is saved.
+      </div>
+    </section>
+
+    <section class="band alt" id="stages">
+      <div class="section-head">
+        <p class="eyebrow">A framework, not a schedule</p>
+        <h2>Three stages survivors commonly move through</h2>
+        <p>Based on psychologist Judith Herman's widely used trauma-recovery model. People move back and forth between these — that's normal, not a setback.</p>
+      </div>
+      <div class="grid" id="stage-grid">
+        <article class="card" data-progress-id="stage-safety">
+          <h2>1. Safety &amp; stabilization</h2>
+          <p>Establishing physical and emotional safety comes first — everything else builds on it.</p>
+          <ul>
+            <li>Build or revisit your <a href="/safety.html">safety plan</a></li>
+            <li>Identify safe people, places, and routines</li>
+            <li>Stabilize sleep, food, and daily structure where possible</li>
+          </ul>
+          <label class="progress-check"><input type="checkbox" data-progress="stage-safety"> I've spent time on this stage</label>
+        </article>
+        <article class="card" data-progress-id="stage-mourning">
+          <h2>2. Remembrance &amp; mourning</h2>
+          <p>Processing what happened, at a pace you control — often with professional support.</p>
+          <ul>
+            <li>Consider talking to a trauma-informed therapist (see directory below)</li>
+            <li>Use the private <a href="/log.html">Notes</a> tool if writing helps</li>
+            <li>Grief, anger, and numbness are all normal parts of this stage</li>
+          </ul>
+          <label class="progress-check"><input type="checkbox" data-progress="stage-mourning"> I've spent time on this stage</label>
+        </article>
+        <article class="card" data-progress-id="stage-reconnection">
+          <h2>3. Reconnection &amp; growth</h2>
+          <p>Rebuilding a sense of self and relationships on your own terms.</p>
+          <ul>
+            <li>Reconnect with interests, people, or routines at your own pace</li>
+            <li>Peer support groups can help (see directory below)</li>
+            <li>Growth doesn't mean forgetting or "getting over it"</li>
+          </ul>
+          <label class="progress-check"><input type="checkbox" data-progress="stage-reconnection"> I've spent time on this stage</label>
+        </article>
+      </div>
+    </section>
+
+    <section class="band" id="tools">
+      <div class="section-head">
+        <p class="eyebrow">Right now</p>
+        <h2>Grounding tools you can use in a few minutes</h2>
+        <p>These won't fix everything, but they can help settle your body in a hard moment.</p>
+      </div>
+      <div class="grid two">
+        <article class="card" data-progress-id="tool-breathing">
+          <h2>Box breathing</h2>
+          <p>A slow 4-4-4-4 breathing pattern used to calm the nervous system.</p>
+          <div class="breath-wrap" id="breath-wrap" hidden>
+            <div class="breath-circle" id="breath-circle"><span id="breath-label">Ready</span></div>
+            <p class="status" id="breath-status" aria-live="polite"></p>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn primary" id="breath-start">Start</button>
+            <button type="button" class="btn" id="breath-stop" hidden>Stop</button>
+          </div>
+        </article>
+
+        <article class="card" data-progress-id="tool-grounding">
+          <h2>5-4-3-2-1 grounding</h2>
+          <p>Use your senses to bring your attention back to the present moment.</p>
+          <div id="grounding-wrap" hidden>
+            <p class="status" id="grounding-prompt" aria-live="polite"></p>
+            <label>
+              <span id="grounding-label">Optional: jot a word or two (not saved anywhere)</span>
+              <input type="text" id="grounding-input" autocomplete="off">
+            </label>
+            <div class="actions">
+              <button type="button" class="btn primary" id="grounding-next">Next</button>
+              <button type="button" class="btn" id="grounding-restart">Restart</button>
+            </div>
+          </div>
+          <div class="actions" id="grounding-start-actions">
+            <button type="button" class="btn primary" id="grounding-start">Start</button>
+          </div>
+        </article>
+
+        <article class="card" data-progress-id="tool-affirmations">
+          <h2>Grounding reminders</h2>
+          <p>Short, honest reminders — not toxic positivity.</p>
+          <p class="status" id="affirmation-text" aria-live="polite">"What happened to you was not your fault."</p>
+          <div class="actions">
+            <button type="button" class="btn" id="affirmation-next">Next</button>
+          </div>
+        </article>
+
+        <article class="card" data-progress-id="tool-journal">
+          <h2>Private reflection</h2>
+          <p>If writing things down helps, your encrypted <a href="/log.html">Notes</a> are readable only by you — not even the site operator can read them.</p>
+          <div class="actions">
+            <a class="btn primary" href="/log.html">Open Notes</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="band alt" id="directory">
+      <div class="section-head">
+        <p class="eyebrow">Real help, verified</p>
+        <h2>Free and low-cost mental health resources</h2>
+        <p>National, currently-operating organizations. See <a href="/resources.html">Resources</a> for crisis, legal, and population-specific contacts.</p>
+      </div>
+      <div class="grid" id="directory-grid">
+        <article class="card">
+          <h2>988 Suicide &amp; Crisis Lifeline</h2>
+          <p>Free, confidential 24/7 support for suicidal, mental health, or emotional distress.</p>
+          <a class="btn" href="tel:988">Call or text 988</a>
+        </article>
+        <article class="card">
+          <h2>Crisis Text Line</h2>
+          <p>Free, 24/7 text-based crisis support with a trained counselor.</p>
+          <a class="btn" href="sms:741741?body=HOME">Text HOME to 741741</a>
+        </article>
+        <article class="card">
+          <h2>SAMHSA National Helpline</h2>
+          <p>Free, confidential 24/7 treatment referral and information service for mental health and substance use.</p>
+          <p class="status">Call 1-800-662-4357</p>
+          <a class="btn" href="https://www.samhsa.gov/find-help/helplines/national-helpline" target="_blank" rel="noopener">samhsa.gov</a>
+        </article>
+        <article class="card">
+          <h2>SAMHSA FindTreatment.gov</h2>
+          <p>Federal locator for mental health and substance-use treatment near you — filter by free or sliding-scale providers.</p>
+          <a class="btn" href="https://findtreatment.gov/" target="_blank" rel="noopener">findtreatment.gov</a>
+        </article>
+        <article class="card">
+          <h2>NAMI HelpLine</h2>
+          <p>Free, peer-staffed support for mental health questions. Not a crisis line — weekdays 10am-10pm ET only. Use 988 outside those hours.</p>
+          <p class="status">Call 1-800-950-6264</p>
+          <a class="btn" href="https://www.nami.org/nami-helpline/" target="_blank" rel="noopener">nami.org</a>
+        </article>
+        <article class="card">
+          <h2>Open Path Collective</h2>
+          <p>Directory of vetted therapists offering steeply reduced-rate sessions. Not free: a one-time $65 membership, then roughly $30-$80 per session.</p>
+          <a class="btn" href="https://openpathcollective.org/" target="_blank" rel="noopener">openpathcollective.org</a>
+        </article>
+        <article class="card">
+          <h2>211</h2>
+          <p>Connects you to local community services, including mental health support, in your area.</p>
+          <p class="status">Call or text your ZIP code to 898211</p>
+          <a class="btn" href="https://www.211.org/" target="_blank" rel="noopener">211.org</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="band" id="progress">
+      <div class="section-head">
+        <p class="eyebrow">Your pace</p>
+        <h2>Your progress</h2>
+        <p>A gentle log of what you've explored here — stored only on this device.</p>
+      </div>
+      <ul class="progress-summary" id="progress-summary"></ul>
+      <div class="actions">
+        <button type="button" class="btn" id="progress-reset">Clear my progress</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    This page offers education and grounding tools, not therapy or crisis dispatch. If you are in immediate danger, call 911.
+  </footer>
+  <script src="/shared.js"></script>
+  <script src="/recovery.js"></script>
+</body>
+</html>

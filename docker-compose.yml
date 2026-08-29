@@ -25,6 +25,16 @@ services:
       - SITE_DIR=/usr/share/nginx/html
       - DATABASE_URL=postgresql+psycopg://solusvires:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@db:5432/solusvires
       - SESSION_COOKIE_SECURE=true
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://127.0.0.1:8000}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@example.com}
+      - CHECKIN_TOKEN_SECRET=${CHECKIN_TOKEN_SECRET:-}
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-no-reply@example.com}
+      - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-Solus Vires}
+      - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
+      - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
     expose:
       - "8000"
     volumes:

@@ -17,7 +17,17 @@ async def add_security_headers(
     response.headers["Permissions-Policy"] = "geolocation=(self)"
 
     if request.url.path.startswith(
-        ("/contact", "/api/contact", "/api/auth", "/api/evidence", "/account.html", "/log.html")
+        (
+            "/contact",
+            "/api/contact",
+            "/api/auth",
+            "/api/evidence",
+            "/api/checkin",
+            "/account.html",
+            "/log.html",
+            "/checkin.html",
+            "/checkin-invite.html",
+        )
     ):
         response.headers["Cache-Control"] = "no-store"
 
