@@ -16,7 +16,9 @@ async def add_security_headers(
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(self)"
 
-    if request.url.path.startswith(("/contact", "/api/contact")):
+    if request.url.path.startswith(
+        ("/contact", "/api/contact", "/api/auth", "/api/evidence", "/account.html", "/log.html")
+    ):
         response.headers["Cache-Control"] = "no-store"
 
     return response

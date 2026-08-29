@@ -17,10 +17,14 @@ services:
     build: ./backend
     container_name: solusvires_api
     restart: unless-stopped
+    depends_on:
+      - db
     environment:
       - PYTHONUNBUFFERED=1
       - APP_ENV=production
       - SITE_DIR=/usr/share/nginx/html
+      - DATABASE_URL=postgresql+psycopg://solusvires:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@db:5432/solusvires
+      - SESSION_COOKIE_SECURE=true
     expose:
       - "8000"
     volumes:

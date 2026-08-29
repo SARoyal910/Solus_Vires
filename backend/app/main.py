@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .api import contact, health
+from .api import auth, contact, evidence, health
 from .core.config import get_settings
 from .core.middleware import add_security_headers
 
@@ -23,6 +23,8 @@ def create_app() -> FastAPI:
     app.middleware("http")(add_security_headers)
     app.include_router(health.router)
     app.include_router(contact.router)
+    app.include_router(auth.router)
+    app.include_router(evidence.router)
 
     if settings.site_dir.exists():
         app.mount("/", StaticFiles(directory=settings.site_dir, html=True), name="site")

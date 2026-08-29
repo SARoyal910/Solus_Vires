@@ -281,6 +281,19 @@ textarea {
   font-weight: 700;
 }
 
+.recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.02rem;
+}
+
 footer {
   padding: 1rem clamp(1rem, 5vw, 5rem);
   color: var(--muted);

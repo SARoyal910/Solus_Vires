@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Account - Solus Vires</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Solus Vires</a>
+    <nav aria-label="Primary">
+      <a href="/resources.html">Resources</a>
+      <a href="/safety.html">Safety</a>
+      <a href="/legal.html">Legal</a>
+      <a href="/partners.html">Partners</a>
+      <a href="/emergency.html">Emergency</a>
+      <a href="/account.html" aria-current="page">Account</a>
+      <a href="/contact.html">Contact</a>
+    </nav>
+    <button class="quick-exit" id="quick-exit-btn">Quick Exit</button>
+  </header>
+
+  <main class="band">
+    <div class="section-head">
+      <h1>Account</h1>
+      <p>An account lets you keep private notes on this device. Choose a username that does not identify you, and a password only you know.</p>
+    </div>
+
+    <div class="notice">
+      This device may not be safe to use. If someone else can see this screen or check this browser's history, consider using a different device.
+    </div>
+
+    <section id="logged-out-view" hidden>
+      <div class="grid two">
+        <article class="card">
+          <h2>Log in</h2>
+          <form id="login-form">
+            <label>
+              Username
+              <input type="text" name="username" autocomplete="username" required>
+            </label>
+            <label>
+              Password
+              <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit" class="btn primary">Log in</button>
+            <p id="login-status" class="status" aria-live="polite"></p>
+          </form>
+          <p><button type="button" class="btn" id="show-recover-btn">Forgot password?</button></p>
+        </article>
+
+        <article class="card">
+          <h2>Create an account</h2>
+          <form id="register-form">
+            <label>
+              Choose a username
+              <input type="text" name="username" autocomplete="off" minlength="3" maxlength="32" pattern="[a-zA-Z0-9_.\-]+" required>
+            </label>
+            <label>
+              Choose a password (10+ characters)
+              <input type="password" name="password" autocomplete="new-password" minlength="10" required>
+            </label>
+            <button type="submit" class="btn primary">Create account</button>
+            <p id="register-status" class="status" aria-live="polite"></p>
+          </form>
+        </article>
+      </div>
+
+      <article class="card" id="recover-card" hidden>
+        <h2>Reset password with a recovery code</h2>
+        <p>Use one of the one-time recovery codes you saved when you created your account. Each code works once.</p>
+        <form id="recover-form">
+          <label>
+            Username
+            <input type="text" name="username" autocomplete="username" required>
+          </label>
+          <label>
+            Recovery code
+            <input type="text" name="recovery_code" autocomplete="off" required>
+          </label>
+          <label>
+            New password (10+ characters)
+            <input type="password" name="new_password" autocomplete="new-password" minlength="10" required>
+          </label>
+          <button type="submit" class="btn primary">Reset password</button>
+          <p id="recover-status" class="status" aria-live="polite"></p>
+        </form>
+        <p class="notice">Resetting your password does not affect your private notes. Those are protected separately by your Notes PIN, which cannot be reset.</p>
+      </article>
+    </section>
+
+    <section id="logged-in-view" hidden>
+      <article class="card">
+        <h2>You are logged in as <span id="me-username"></span></h2>
+        <p>Your private notes are protected separately by a Notes PIN and are not shown here.</p>
+        <div class="actions">
+          <a class="btn primary" href="/log.html">Go to Notes</a>
+          <button type="button" class="btn" id="logout-btn">Log out</button>
+          <button type="button" class="btn danger" id="logout-all-btn">Log out everywhere</button>
+        </div>
+        <p id="account-status" class="status" aria-live="polite"></p>
+      </article>
+    </section>
+
+    <article class="card" id="recovery-codes-card" hidden>
+      <h2>Save these recovery codes now</h2>
+      <p>These codes are the only way to get back into your account if you forget your password. Each works once. They will not be shown again. Write them down somewhere the person hurting you cannot find, not in a shared cloud account or a device they can access.</p>
+      <div class="recovery-codes" id="recovery-codes-list"></div>
+      <label>
+        <input type="checkbox" id="codes-saved-check">
+        I have saved these codes somewhere safe.
+      </label>
+      <button type="button" class="btn primary" id="codes-continue-btn" disabled>Continue to log in</button>
+    </article>
+  </main>
+
+  <footer>
+    Quick Exit is available, but it cannot erase browser, network, or device history.
+  </footer>
+  <script src="/shared.js"></script>
+  <script>
+    const loggedOutView = document.getElementById("logged-out-view");
+    const loggedInView = document.getElementById("logged-in-view");
+    const recoveryCodesCard = document.getElementById("recovery-codes-card");
+
+    function showLoggedOut() {
+      recoveryCodesCard.hidden = true;
+      loggedInView.hidden = true;
+      loggedOutView.hidden = false;
+    }
+
+    function showLoggedIn(username) {
+      recoveryCodesCard.hidden = true;
+      loggedOutView.hidden = true;
+      loggedInView.hidden = false;
+      document.getElementById("me-username").textContent = username;
+    }
+
+    async function refreshSession() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          showLoggedIn(data.username);
+          return;
+        }
+      } catch (e) {
+        // fall through to logged-out view
+      }
+      showLoggedOut();
+    }
+
+    document.getElementById("show-recover-btn").addEventListener("click", () => {
+      const card = document.getElementById("recover-card");
+      card.hidden = !card.hidden;
+    });
+
+    document.getElementById("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const status = document.getElementById("login-status");
+      status.textContent = "Logging in...";
+      const form = event.target;
+      const body = JSON.stringify({
+        username: form.username.value,
+        password: form.password.value,
+      });
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body,
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          form.reset();
+          status.textContent = "";
+          await refreshSession();
+          return;
+        }
+        status.textContent = data.detail || "Unable to log in.";
+      } catch (e) {
+        status.textContent = "Unable to log in right now.";
+      }
+    });
+
+    document.getElementById("register-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const status = document.getElementById("register-status");
+      status.textContent = "Creating account...";
+      const form = event.target;
+      const body = JSON.stringify({
+        username: form.username.value,
+        password: form.password.value,
+      });
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          form.reset();
+          status.textContent = "";
+          const list = document.getElementById("recovery-codes-list");
+          list.textContent = "";
+          for (const code of data.recovery_codes) {
+            const div = document.createElement("div");
+            div.textContent = code;
+            list.appendChild(div);
+          }
+          loggedOutView.hidden = true;
+          recoveryCodesCard.hidden = false;
+          return;
+        }
+        status.textContent = data.detail || "Unable to create account.";
+      } catch (e) {
+        status.textContent = "Unable to create account right now.";
+      }
+    });
+
+    document.getElementById("codes-saved-check").addEventListener("change", (event) => {
+      document.getElementById("codes-continue-btn").disabled = !event.target.checked;
+    });
+
+    document.getElementById("codes-continue-btn").addEventListener("click", () => {
+      showLoggedOut();
+    });
+
+    document.getElementById("recover-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const status = document.getElementById("recover-status");
+      status.textContent = "Resetting...";
+      const form = event.target;
+      const body = JSON.stringify({
+        username: form.username.value,
+        recovery_code: form.recovery_code.value,
+        new_password: form.new_password.value,
+      });
+      try {
+        const res = await fetch("/api/auth/recover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          form.reset();
+          status.textContent = "Password reset. You can log in now.";
+          return;
+        }
+        status.textContent = data.detail || "Unable to reset password.";
+      } catch (e) {
+        status.textContent = "Unable to reset password right now.";
+      }
+    });
+
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await refreshSession();
+    });
+
+    document.getElementById("logout-all-btn").addEventListener("click", async () => {
+      await fetch("/api/auth/logout-all", { method: "POST", credentials: "include" });
+      await refreshSession();
+    });
+
+    refreshSession();
+  </script>
+</body>
+</html>
