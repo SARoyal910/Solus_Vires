@@ -34,6 +34,9 @@ docker-compose.override.yml
 .docker/
 *.local
 
+# Personal notes, kept out of the shared repo on purpose
+docs/LEARN_DEVOPS.md
+
 # Frontend/build artifacts
 node_modules/
 dist/
