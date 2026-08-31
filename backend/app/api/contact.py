@@ -1,14 +1,16 @@
-from fastapi import APIRouter, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, status
 
 from ..core.config import get_settings
+from ..core.rate_limit import RateLimiter
 from ..schemas.contact import ContactResponse, ContactSubmission
 from ..services.contact import ContactService
 
 router = APIRouter(prefix="/api", tags=["contact"])
 service = ContactService()
+contact_limiter = RateLimiter(max_requests=5, window_seconds=600)
 
 
-@router.post("/contact", response_model=ContactResponse)
+@router.post("/contact", response_model=ContactResponse, dependencies=[Depends(contact_limiter)])
 async def contact(
     safe_name: str = Form(default=""),
     safe_contact: str = Form(default=""),

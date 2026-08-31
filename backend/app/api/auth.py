@@ -2,6 +2,7 @@ from fastapi import APIRouter, Cookie, Depends, Response
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
+from ..core.rate_limit import RateLimiter
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.auth import (
@@ -20,14 +21,20 @@ from ..services.auth import AuthService
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 service = AuthService()
 
+# Per-IP, on top of the per-account lockout in core/security.py - that alone
+# doesn't stop one IP from spraying attempts across many usernames.
+register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
+login_limiter = RateLimiter(max_requests=20, window_seconds=300)
+recover_limiter = RateLimiter(max_requests=10, window_seconds=3600)
 
-@router.post("/register", response_model=RegisterResponse)
+
+@router.post("/register", response_model=RegisterResponse, dependencies=[Depends(register_limiter)])
 async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
     _, codes = service.register(db, payload)
     return RegisterResponse(ok=True, recovery_codes=codes)
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse, dependencies=[Depends(login_limiter)])
 async def login(
     payload: LoginRequest, response: Response, db: Session = Depends(get_db)
 ) -> LoginResponse:
@@ -56,7 +63,7 @@ async def logout_all(
     return LoginResponse(ok=True)
 
 
-@router.post("/recover", response_model=RecoverResponse)
+@router.post("/recover", response_model=RecoverResponse, dependencies=[Depends(recover_limiter)])
 async def recover(
     payload: RecoverRequest, response: Response, db: Session = Depends(get_db)
 ) -> RecoverResponse:

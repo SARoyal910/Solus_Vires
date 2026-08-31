@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import get_db
+from ..core.rate_limit import RateLimiter
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.checkin import (
@@ -19,6 +20,11 @@ from ..services.checkin import CheckinService
 
 router = APIRouter(prefix="/api/checkin", tags=["checkin"])
 service = CheckinService()
+
+# Tokens are HMAC-SHA256 (infeasible to brute force outright), but these
+# routes are unauthenticated by design - this is defense-in-depth against
+# scripted probing, not the primary protection.
+invite_limiter = RateLimiter(max_requests=30, window_seconds=300)
 
 
 def _contact_response(db: Session, contact) -> TrustedContactResponse:
@@ -121,7 +127,7 @@ async def vapid_public_key() -> dict[str, str]:
 # ---------- Public: invite (token-authenticated, no account) ----------
 
 
-@router.get("/invite/{token}", response_model=InviteInfoResponse)
+@router.get("/invite/{token}", response_model=InviteInfoResponse, dependencies=[Depends(invite_limiter)])
 async def get_invite(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
     contact, user = service.get_invite(db, token)
     return InviteInfoResponse(
@@ -131,25 +137,25 @@ async def get_invite(token: str, db: Session = Depends(get_db)) -> InviteInfoRes
     )
 
 
-@router.post("/invite/{token}/accept")
+@router.post("/invite/{token}/accept", dependencies=[Depends(invite_limiter)])
 async def accept_invite(token: str, db: Session = Depends(get_db)) -> dict[str, str]:
     contact = service.accept_invite(db, token)
     return {"status": contact.status}
 
 
-@router.post("/invite/{token}/decline")
+@router.post("/invite/{token}/decline", dependencies=[Depends(invite_limiter)])
 async def decline_invite(token: str, db: Session = Depends(get_db)) -> dict[str, str]:
     contact = service.decline_invite(db, token)
     return {"status": contact.status}
 
 
-@router.post("/invite/{token}/stop")
+@router.post("/invite/{token}/stop", dependencies=[Depends(invite_limiter)])
 async def stop_invite(token: str, db: Session = Depends(get_db)) -> dict[str, str]:
     contact = service.stop_invite(db, token)
     return {"status": contact.status}
 
 
-@router.post("/invite/{token}/subscribe")
+@router.post("/invite/{token}/subscribe", dependencies=[Depends(invite_limiter)])
 async def subscribe(
     token: str, payload: PushSubscriptionRequest, db: Session = Depends(get_db)
 ) -> dict[str, bool]:
