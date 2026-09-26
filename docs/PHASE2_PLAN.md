@@ -131,9 +131,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 - Either way, record the decision in section 1 of this file.
 - **Tests:** register without code → 403 with a clear message; with code → 201.
 
-### ▶ P2-F1 · First backup and restore — S — closes engineering "before next sprint" #4
-- Scripts, `age` key, and `docs/RUNBOOK.md` ready; the restore procedure was rehearsed successfully on 2026-09-26 against the owner's **local** copy of the database.
-- **Still to do on the droplet** (production): install `age`, run `scripts/backup.sh` nightly from cron with the public key, copy one dump to the Mac, and rehearse the restore with `scripts/restore_check.sh`. Then move `~/solusvires-backup-key.txt` off the Mac.
+### ✅ P2-F1 · First backup and restore — S — closes engineering "before next sprint" #4
+*Done 2026-09-26: `age` on the droplet, backup taken before the Sprint 1 deploy, nightly cron installed, and that droplet backup decrypted and restored cleanly on the Mac (logged in `docs/RUNBOOK.md`). Owner to-do: move `~/solusvires-backup-key.txt` off the Mac; copy backups off the droplet periodically or enable DigitalOcean backups.*
 
 ### ✅ One-liner copy fixes that ride along — S — closes U-9 (partial)
 *Done on every page's nav; Partners stays reachable from Resources.*
@@ -142,7 +141,7 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 
 **Exit gate:** H1–H6 closed; probe green against live; CI green; one backup restored and documented; D1 recorded.
 
-**Deployed 2026-09-26** (`main` at `e36b0ab` on the droplet): live probe green on all 13 paths, sign-up gate answering, direct-to-droplet connections refused, migrations 0003/0004 applied, CI green. Remaining for the gate: restore one droplet backup (P2-F1).
+**Deployed 2026-09-26** (`main` at `e36b0ab` on the droplet): live probe green on all 13 paths, sign-up gate answering, direct-to-droplet connections refused, migrations 0003/0004 applied, CI green. Droplet backup restored the same day. **Sprint 1 exit gate met.**
 
 ---
 

@@ -92,7 +92,7 @@ Do this after setup, then every few months:
 | Date | Backup file | Result | By |
 |---|---|---|---|
 | 2026-09-26 | Mac's local dev database (not production) | Procedure works: restored cleanly, counts identical to the source | Claude, with the owner |
-| — | First droplet backup | Not yet rehearsed | — |
+| 2026-09-26 | `solusvires-20260926T171930Z.dump.age` (droplet, pre-deploy) | Decrypted and restored cleanly; alembic 0002, 0 users (none had signed up on production yet) | Claude, with the owner |
 
 ## Real restore (production)
 
