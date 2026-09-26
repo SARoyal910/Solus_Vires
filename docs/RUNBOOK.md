@@ -11,6 +11,9 @@ How to deploy, back up, and restore Solus Vires. Keep this current; the
   Cloudflare.
 - **The owner's Mac:** a local copy of the same stack for development and
   testing. Changing it changes nothing on solusvires.com.
+  nginx requires Cloudflare's client certificate (Authenticated Origin
+  Pulls), so direct `https://localhost` requests to that stack are refused;
+  use `scripts/preview.sh` for local viewing.
 - **Phase 2 work** happens in the `~/Projects/solusvires-phase2` worktree
   (branch `phase2`). Preview with `scripts/preview.sh`
   (http://127.0.0.1:8099, throwaway database). Test with `scripts/test.sh`.
@@ -42,6 +45,12 @@ On the droplet:
 - **Take a backup first** (see below): migrations 0003 (Notes PIN key-check)
   and 0004 (push endpoints per contact) run when the api starts.
 - nginx gains a new mount (`nginx/snippets`); `up -d` recreates it.
+- nginx now requires Cloudflare's origin-pull client certificate (Global
+  Authenticated Origin Pulls is on). After step 4, check that a direct
+  connection is refused: `curl -sk https://127.0.0.1 -H 'Host: solusvires.com'`
+  on the droplet should fail with a 400 "No required SSL certificate", while
+  https://solusvires.com still loads. If the site itself errors, remove the
+  `authenticated-origin-pulls.conf` include line and `docker compose restart web`.
 - Production `main` was at `752b953` before this deploy, so it also brings in
   the per-IP rate limiting from `e175ccf`.
 - Rollback: `git checkout 752b953 -- html nginx docker-compose.yml backend`

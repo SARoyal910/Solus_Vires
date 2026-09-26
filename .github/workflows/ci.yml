@@ -58,6 +58,8 @@ jobs:
         run: |
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
             -keyout certs/origin.key -out certs/origin.crt
+      - name: Skip the Cloudflare client-certificate check (CI isn't Cloudflare)
+        run: sed -i '/authenticated-origin-pulls.conf/d' nginx/conf.d/default.conf
       - run: docker compose up -d --build --wait
       - run: PROBE_INSECURE=1 scripts/probe_headers.sh https://localhost
       - if: failure()

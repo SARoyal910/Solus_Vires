@@ -91,7 +91,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 ### ✅ P2-A1 · Real client IP through Cloudflare — S — closes H1 (and unblocks M6)
 *Done: nginx restores the visitor IP from `CF-Connecting-IP`, trusted only from Cloudflare's published ranges (`scripts/update_cf_ranges.sh`); the app trusts `X-Real-IP` only with `TRUST_PROXY_HEADERS=true`. (An earlier note here claimed the origin was Docker Desktop on the owner's Mac; that was wrong. Production is the DigitalOcean droplet; the Mac runs a local copy.)*
 
-### P2-A1b · Only Cloudflare may reach the origin — S — defense in depth, optional
+### ✅ P2-A1b · Only Cloudflare may reach the origin — S — defense in depth, optional
+*Done 2026-09-26: Global AOP on in Cloudflare; nginx now requires the client certificate. Confirm on the droplet after deploy (test below).*
 - Rate-limit spoofing is already closed by P2-A1 (only Cloudflare ranges may set the visitor IP). This hides the droplet from direct connections entirely, so nobody can bypass Cloudflare's own protections.
 - Turn on **Authenticated Origin Pulls → Global** (Cloudflare's shared client cert; "Zone-level" means uploading your own) in the Cloudflare dashboard first, then include `nginx/snippets/authenticated-origin-pulls.conf` (staged, with Cloudflare's CA). Wrong order takes the site down. Alternatively, a DigitalOcean firewall allowing 443 only from Cloudflare's ranges does the same at the network level.
 - **Test:** a direct `curl --resolve solusvires.com:443:<droplet-ip>` is refused; the site still loads through Cloudflare.
