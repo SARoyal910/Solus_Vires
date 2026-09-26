@@ -25,6 +25,7 @@ if not TEST_DATABASE_URL.rsplit("/", 1)[-1].endswith("_test"):
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("CHECKIN_TOKEN_SECRET", "test-secret")
 os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("BETA_SIGNUPS_ENABLED", "true")  # gate behaviour is tested explicitly
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 

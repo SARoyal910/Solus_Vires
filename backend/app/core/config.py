@@ -25,6 +25,8 @@ class Settings:
     checkin_alert_repeat_hours: int
     checkin_token_secret: str
     trust_proxy_headers: bool
+    beta_signups_open: bool
+    beta_invite_codes: tuple[str, ...]
 
 
 @lru_cache
@@ -52,4 +54,10 @@ def get_settings() -> Settings:
         checkin_alert_repeat_hours=int(os.getenv("CHECKIN_ALERT_REPEAT_HOURS", "6")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
         trust_proxy_headers=os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true",
+        # Closed by default: until legal and advocacy review are done, new
+        # accounts need an invite code (engineering review H6).
+        beta_signups_open=os.getenv("BETA_SIGNUPS_ENABLED", "false").lower() == "true",
+        beta_invite_codes=tuple(
+            code.strip() for code in os.getenv("BETA_INVITE_CODES", "").split(",") if code.strip()
+        ),
     )

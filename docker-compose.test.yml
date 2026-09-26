@@ -43,6 +43,7 @@ services:
       - DATABASE_URL=postgresql+psycopg://solusvires:test-only@db-test:5432/solusvires_test
       - SITE_DIR=/site
       - CHECKIN_TOKEN_SECRET=preview-only
+      - BETA_SIGNUPS_ENABLED=true
       - PUBLIC_BASE_URL=http://127.0.0.1:8099
       - PIP_DISABLE_PIP_VERSION_CHECK=1
       - PIP_ROOT_USER_ACTION=ignore

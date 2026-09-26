@@ -128,7 +128,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 - Dead-endpoint pruning (410/404 from the push service): delete **every** row with that endpoint, and set a flag the survivor can see (feeds P2-E5).
 - **Tests:** one endpoint subscribed under two invite tokens → both contacts report 1 device → an alert for either survivor sends to it.
 
-### P2-A7 · Registration gate — S — closes H6 (needs D1)
+### ✅ P2-A7 · Registration gate — S — closes H6 (needs D1)
+*Done: invite-only by default (`BETA_SIGNUPS_ENABLED=false`); codes in `BETA_INVITE_CODES`, compared in constant time; no codes configured = sign-ups paused with a plain message. The gate runs before the username check, so it can't be used to probe usernames. Existing accounts, login, and every resource page are unaffected.*
 - If invite-gate: setting `BETA_SIGNUPS_ENABLED` (default `false`) + `BETA_INVITE_CODES` (comma-separated, hashed compare) checked in `services/auth.py` `register()`. `account.html` shows an "Invite code" field and a plain explanation when signups are closed. Existing accounts unaffected.
 - If banner: a non-dismissible notice on `account.html`, `log.html`, `checkin.html`.
 - Either way, record the decision in section 1 of this file.

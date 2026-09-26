@@ -1,9 +1,12 @@
+import hashlib
+import hmac
 import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Response, status
 from sqlalchemy.orm import Session
 
+from ..core.config import get_settings
 from ..core.login_throttle import login_throttle
 from ..core.security import (
     create_session,
@@ -21,10 +24,34 @@ from ..schemas.auth import DeleteAccountRequest, LoginRequest, RecoverRequest, R
 logger = logging.getLogger("solusvires.auth")
 
 
+def _digest(value: str) -> bytes:
+    return hashlib.sha256(value.strip().encode("utf-8")).digest()
+
+
+def check_signup_allowed(invite_code: str | None) -> None:
+    """New accounts need an invite code until sign-ups are opened (review H6)."""
+    settings = get_settings()
+    if settings.beta_signups_open:
+        return
+    if not settings.beta_invite_codes:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="New accounts are paused while the site is being reviewed. Everything else on the site is open.",
+        )
+    supplied = _digest(invite_code or "")
+    # Compare every code, in constant time, so timing doesn't hint at a near miss.
+    matched = False
+    for code in settings.beta_invite_codes:
+        matched |= hmac.compare_digest(supplied, _digest(code))
+    if not matched:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="That invite code isn't valid.")
+
+
 class AuthService:
     """Handles account lifecycle. Never logs a password, recovery code, or session token."""
 
     def register(self, db: Session, payload: RegisterRequest) -> tuple[User, list[str]]:
+        check_signup_allowed(payload.invite_code)
         existing = db.query(User).filter(User.username == payload.username).first()
         if existing is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username is taken.")

@@ -28,6 +28,9 @@ services:
       - SESSION_COOKIE_SECURE=true
       # nginx sets X-Real-IP to the real visitor; safe to trust behind it only.
       - TRUST_PROXY_HEADERS=true
+      # Sign-ups stay invite-only until legal + advocacy review (PHASE2_PLAN D1).
+      - BETA_SIGNUPS_ENABLED=${BETA_SIGNUPS_ENABLED:-false}
+      - BETA_INVITE_CODES=${BETA_INVITE_CODES:-}
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://127.0.0.1:8000}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
