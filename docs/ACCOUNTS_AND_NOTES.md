@@ -190,7 +190,7 @@ One inherent limitation this fix cannot close, already true of zero-knowledge de
 - Admin or partner-facing tooling; there is a single user role, no RBAC.
 - Structured audit logging — deferred pending an actual design for who such logs would be for and how they'd be protected, since with zero-knowledge content there's little upside and some risk (e.g., login IPs) to logging by default.
 - A public abuser registry — deliberately rejected, not deferred (see "Why this exists" above).
-- Rate limiting/abuse detection beyond the basic login lockout; no CAPTCHA or WAF-level protection.
+- ~~Rate limiting beyond the basic login lockout~~ Done in Phase 2: per-IP rate limits and a per-(IP, username) login slowdown replaced the account lockout. Still no CAPTCHA (deliberately, decision D7) or abuse alerting (P2-F3).
 - Backup/restore testing; a defined data retention/deletion policy beyond user-initiated delete.
 - A Notes PIN change/rotation flow — the data model supports it (the salt lives on `users`, not per-entry), but the re-encrypt-all-entries UI is a fast-follow, not MVP-blocking.
 - **Legal review.** Per the project's own architecture doc and README, this remains a hard prerequisite before any real-world use with actual survivors. This build is a technical milestone, not a launch-ready product.

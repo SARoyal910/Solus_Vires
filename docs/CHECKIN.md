@@ -11,7 +11,7 @@ Documents the "I'm OK" check-in and missed-check-in alert feature: why it exists
 The project has an explicit "keep production free" constraint. That ruled out SMS as the notification channel — every SMS provider (Twilio, Vonage, AWS SNS) charges per message, and trial credits aren't viable for real production use (Twilio trial accounts can only message pre-verified numbers). Instead, this feature uses two channels that are genuinely free at this scale:
 
 - **Web Push** (primary) — the W3C Push API + VAPID, with no third-party service or per-message cost. On Android, Chrome routes it through Firebase Cloud Messaging in the background; on iOS 16.4+, if the contact adds the site to their home screen, it routes through Apple's APNs. Requires the contact to visit an invite link once and grant notification permission — and on iOS specifically, to add the page to their home screen first, since plain Safari tabs can't receive push at all.
-- **Email via Brevo** (fallback) — Brevo's transactional email API has a genuine permanent free tier (300 emails/day, no credit card). Used as the reliable fallback whenever push isn't set up or a push send fails, since push delivery isn't guaranteed (a subscription can go stale, or a device can be offline long enough that the push service drops the message).
+- **Email via Brevo** — Brevo's transactional email API has a genuine permanent free tier (300 emails/day, no credit card). Sent on **every** alert alongside push, not only when push fails: push delivery isn't guaranteed (a subscription can go stale, or a device can be offline long enough that the push service drops the message), and a duplicate alert is safer than a missed one (Phase 2 decision D4). Each alert says it repeats every `CHECKIN_ALERT_REPEAT_HOURS` (6) until the survivor checks in, and links to `/if-you-get-an-alert.html`.
 
 Both are skipped gracefully (logged, not an error) when their config isn't set — same pattern as `CONTACT_SINK=console` elsewhere in this codebase — so local development doesn't require real API keys.
 
@@ -39,7 +39,7 @@ Three new tables, added via Alembic migration `backend/migrations/versions/0002_
 trusted_contacts   id, user_id (fk), nickname, contact_email, status,
                    invited_at, responded_at, created_at
 
-push_subscriptions id, trusted_contact_id (fk), endpoint (unique), p256dh, auth,
+push_subscriptions id, trusted_contact_id (fk), endpoint (unique per contact), p256dh, auth,
                    created_at, last_seen_at
 
 checkin_schedules  id, user_id (fk, unique — one per account), active,
@@ -48,6 +48,8 @@ checkin_schedules  id, user_id (fk, unique — one per account), active,
 ```
 
 `nickname` is the survivor's own private label for the contact and is never sent to the contact or exposed by any public endpoint.
+
+**One device, several survivors (Phase 2, migration 0004).** A browser has one push endpoint per site. Endpoints used to be globally unique, so a person who was the trusted contact for two survivors had their device silently moved to whichever invite they subscribed under last. Endpoints are now unique per contact: the same device can serve several contacts, re-subscribing refreshes its keys under all of them, and an expired endpoint is removed from all of them.
 
 ## API surface
 

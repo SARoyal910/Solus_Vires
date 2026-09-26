@@ -1,5 +1,7 @@
 # Solus Vires — Project Report
 
+> **Historical.** This is a report of the work up to early Phase 2 and is not kept current. For what's live now see `docs/PROGRESS.md`; for what's next see `docs/PHASE2_PLAN.md`. Some statements below (e.g. the Mac-shared local database, no rate limiting, no backups) have since changed.
+
 **As of:** 2026-08-29
 **Status:** Technical prototype. Not yet reviewed by legal counsel or a domestic-violence advocacy organization — see [TODO.md](TODO.md) before any real-world use.
 
