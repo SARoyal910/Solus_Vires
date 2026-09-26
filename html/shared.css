@@ -857,3 +857,17 @@ footer a {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Self-check list (is-this-abuse.html) ---------- */
+
+.check-list {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.check-list .progress-check {
+  margin-top: 0.55rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink);
+}
