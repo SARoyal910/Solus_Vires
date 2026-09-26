@@ -900,3 +900,13 @@ footer a {
 section[id] {
   scroll-margin-top: 5rem;
 }
+
+/* ---------- State finder (legal.html, resources.html) ---------- */
+
+.state-finder {
+  margin-top: 1.5rem;
+}
+
+.state-finder label {
+  max-width: 22rem;
+}
