@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Contact - Solus Vires</title>
+  <title>Contact | Solus Vires</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How to get support right now, and how to reach the person who runs Solus Vires.">
   <link rel="stylesheet" href="/shared.css">
 </head>
 <body>
@@ -16,72 +17,52 @@
       <a href="/legal.html">Legal</a>
       <a href="/emergency.html">Emergency</a>
       <a href="/account.html">Notes &amp; Check-ins</a>
-      <a href="/contact.html" aria-current="page">Contact</a>
+      <a href="/contact.html">Contact</a>
       <a href="/es/" lang="es" hreflang="es">Español</a>
     </nav>
     <button class="quick-exit" id="quick-exit-btn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M11 8H5m6 0-2.5-2.5M11 8l-2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Quick Exit</button>
   </header>
 
-  <main class="band">
-    <div class="section-head">
-      <h1>Contact discreetly</h1>
-      <p>Only share what feels safe. Use an alias if needed, and do not include details that could put you at risk if someone else sees this device.</p>
-    </div>
+  <main>
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">Contact</p>
+        <h1>Getting help</h1>
+        <p>This site doesn't offer direct support or counseling, and messages sent here wouldn't reach anyone quickly enough to help in a crisis. These people can help you right now, free and confidentially.</p>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <h2>In danger now</h2>
+          <p>Call 911, or your local emergency number.</p>
+          <a class="btn danger" href="tel:911">Call 911</a>
+        </article>
+        <article class="card">
+          <h2>Talk to an advocate</h2>
+          <p>The National Domestic Violence Hotline: support, safety planning, and local referrals, 24/7.</p>
+          <p class="status">Call 1-800-799-7233 · Text START to 88788</p>
+          <a class="btn primary" href="tel:18007997233">Call the Hotline</a>
+        </article>
+        <article class="card">
+          <h2>More options</h2>
+          <p>Text lines, legal help, and services for specific situations.</p>
+          <a class="btn" href="/resources.html">All resources →</a>
+        </article>
+      </div>
+    </section>
 
-    <div class="notice">
-      This form currently confirms receipt only. It should be connected to a vetted, secure response workflow before being used for urgent help.
-    </div>
-
-    <section class="card">
-      <form id="contact-form">
-        <label>
-          Safe name or alias
-          <input type="text" name="safe_name" autocomplete="off">
-        </label>
-        <label>
-          Safe contact method
-          <input type="text" name="safe_contact" autocomplete="off" placeholder="Only if it is safe">
-        </label>
-        <label>
-          Message
-          <textarea name="message" rows="6" maxlength="3000" required></textarea>
-        </label>
-        <button type="submit" class="btn primary">Send Message</button>
-        <p id="status" class="status" aria-live="polite"></p>
-      </form>
+    <section class="band alt">
+      <div class="section-head">
+        <p class="eyebrow">About this site</p>
+        <h2>Reaching the person who runs it</h2>
+        <p>For questions about the site itself, not for support, see the <a href="/about.html">About page</a>. A monitored contact address is being set up and will be listed there.</p>
+      </div>
     </section>
   </main>
 
   <footer>
-    In immediate danger, call 911 if it is safe. This form is not monitored as an emergency channel.
+    If you are in immediate danger, call 911 (or your local emergency number).
+    <p class="footer-links"><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/help-someone.html">Help someone</a></p>
   </footer>
   <script src="/shared.js"></script>
-  <script>
-    const form = document.getElementById("contact-form");
-    const status = document.getElementById("status");
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      status.textContent = "Sending...";
-
-      try {
-        const response = await fetch("/api/contact", {
-          method: "POST",
-          body: new FormData(form)
-        });
-        const data = await response.json();
-
-        if (response.ok && data.ok) {
-          status.textContent = data.message;
-          form.reset();
-          return;
-        }
-
-        status.textContent = data.detail || "Unable to send right now.";
-      } catch (error) {
-        status.textContent = "Unable to send right now.";
-      }
-    });
-  </script>
 </body>
 </html>

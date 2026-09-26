@@ -55,6 +55,8 @@ def _invite_email_html(username: str, accept_url: str, base_url: str) -> str:
     so you can check on them. You'll only receive anything if that happens.</p>
     <p><a href="{accept_url}">View this invite and choose whether to accept</a></p>
     <p>If you don't know why you're receiving this, you can safely ignore it or decline on that page.</p>
+    <p>Not sure this email is real? You can see who runs the site at
+    <a href="{base_url}/about.html">{base_url}/about.html</a>. We will never ask for a password.</p>
     <p>Want to know how to support someone?
     <a href="{base_url}/help-someone.html">How to help someone you care about</a></p>
     """.strip()

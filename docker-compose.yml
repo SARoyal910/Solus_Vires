@@ -1,5 +1,12 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   web:
+    logging: *default-logging
     image: nginx:alpine
     container_name: solusvires_web
     restart: unless-stopped
@@ -15,6 +22,7 @@ services:
       - api
 
   api:
+    logging: *default-logging
     build: ./backend
     container_name: solusvires_api
     restart: unless-stopped
@@ -47,6 +55,7 @@ services:
       - ./backend/app:/backend/app
 
   db:
+    logging: *default-logging
     image: postgres:16-alpine
     container_name: solusvires_db
     restart: unless-stopped
