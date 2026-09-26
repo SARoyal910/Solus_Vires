@@ -93,7 +93,7 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 
 ### P2-A1b · Only Cloudflare may reach the origin — S — defense in depth, optional
 - Rate-limit spoofing is already closed by P2-A1 (only Cloudflare ranges may set the visitor IP). This hides the droplet from direct connections entirely, so nobody can bypass Cloudflare's own protections.
-- Enable **Authenticated Origin Pulls** (zone-level) in the Cloudflare dashboard first, then include `nginx/snippets/authenticated-origin-pulls.conf` (staged, with Cloudflare's CA). Wrong order takes the site down. Alternatively, a DigitalOcean firewall allowing 443 only from Cloudflare's ranges does the same at the network level.
+- Turn on **Authenticated Origin Pulls → Global** (Cloudflare's shared client cert; "Zone-level" means uploading your own) in the Cloudflare dashboard first, then include `nginx/snippets/authenticated-origin-pulls.conf` (staged, with Cloudflare's CA). Wrong order takes the site down. Alternatively, a DigitalOcean firewall allowing 443 only from Cloudflare's ranges does the same at the network level.
 - **Test:** a direct `curl --resolve solusvires.com:443:<droplet-ip>` is refused; the site still loads through Cloudflare.
 
 ### ✅ P2-A3 · Wrong PIN can never fork the vault — S — closes H3
