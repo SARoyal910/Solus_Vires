@@ -135,8 +135,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 - Either way, record the decision in section 1 of this file.
 - **Tests:** register without code → 403 with a clear message; with code → 201.
 
-### ▶ P2-F1 · First backup and restore — S — closes engineering "before next sprint" #4
-*Scripts and `docs/RUNBOOK.md` written. Waiting on the owner: install `age`, create the offline key, choose the off-host folder, set the cron, run one rehearsal and log it in the runbook.*
+### ✅ P2-F1 · First backup and restore — S — closes engineering "before next sprint" #4
+*Done 2026-09-26: `age` installed, key generated, first backup taken and restored cleanly (matches live), nightly launchd job installed. Two owner follow-ups: move `~/solusvires-backup-key.txt` off the Mac, and point backups at an off-machine folder (none attached yet).*
 - `scripts/backup.sh`: `pg_dump -Fc` from the `db` container, encrypt with `age` to an off-host location. Cron it nightly on the host.
 - Restore it once into a scratch database, run the smoke probe against an app pointed at it, and write the steps and the date into a new `docs/RUNBOOK.md`.
 

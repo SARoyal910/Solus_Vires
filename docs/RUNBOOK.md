@@ -48,13 +48,21 @@ on this Mac, so a stolen laptop or backup drive reveals nothing.
 
 One-time setup:
 1. `brew install age`
-2. `age-keygen -o solusvires-backup-key.txt` — note the `public key: age1...`
+2. `age-keygen -o solusvires-backup-key.txt` (done 2026-09-26; currently at
+   `~/solusvires-backup-key.txt`, **still on this Mac, move it**) — note the `public key: age1...`
    line, then move this file **off the machine** (password manager, USB
    stick in a drawer). Losing it means losing every backup.
 3. Pick an off-host destination folder (e.g. a synced cloud drive folder or
-   an external disk).
-4. Cron it (`crontab -e`):
-   `15 3 * * * cd ~/Projects/solusvires && BACKUP_AGE_RECIPIENT=age1... scripts/backup.sh "/path/to/offsite" >> ~/solusvires-backup.log 2>&1`
+   an external disk). **Current state (2026-09-26):** no cloud drive or
+   external disk is attached, so backups go to `~/SolusViresBackups` on this
+   Mac. That covers a bad migration or corrupted database, not losing the Mac.
+   Point the cron line at an off-machine folder as soon as one exists.
+4. Schedule it. macOS blocks `crontab` without Full Disk Access, so it runs
+   as a launchd agent instead: `~/Library/LaunchAgents/com.solusvires.backup.plist`
+   (03:15 nightly; recipient read from `~/SolusViresBackups.recipient`; log in
+   `~/SolusViresBackups/backup.log`). Installed 2026-09-26.
+   Stop it: `launchctl bootout gui/$(id -u)/com.solusvires.backup`.
+   Run it now: `launchctl kickstart gui/$(id -u)/com.solusvires.backup`.
 
 Keeps the newest 30 dumps.
 
@@ -64,12 +72,11 @@ Do this after setup, then every few months:
 
 1. `scripts/restore_check.sh /path/to/offsite/solusvires-<latest>.dump.age /path/to/solusvires-backup-key.txt`
 2. Confirm the row counts look right and the alembic version matches production.
-3. `scripts/preview.sh down` to discard the restored copy.
-4. Record it below.
+3. Record it below. (The script discards the restored copy itself.)
 
 | Date | Backup file | Result | By |
 |---|---|---|---|
-| — | — | Not yet rehearsed | — |
+| 2026-09-26 | `solusvires-20260926T161022Z.dump.age` | Restored cleanly; alembic 0002, 3 users, 2 notes, 0 contacts, identical to live | Claude, with the owner |
 
 ## Real restore (production)
 
