@@ -32,7 +32,8 @@ services:
     command: sh -c "pip install -q -r requirements-dev.txt && ruff check . && pytest -p no:cacheprovider $${PYTEST_ARGS:-}"
 
   # Local preview of this branch: the site + API with a throwaway database.
-  # Started by scripts/preview.sh; never touches the live stack.
+  # Started by scripts/preview.sh under its own compose project, so test runs
+  # (which tear down theirs) leave it alone. Never touches the live stack.
   preview:
     image: python:3.12-slim
     working_dir: /backend

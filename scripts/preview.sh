@@ -4,7 +4,7 @@
 #   scripts/preview.sh down   stop and discard the database
 set -eu
 cd "$(dirname "$0")/.."
-compose="docker compose -p solusvires-test -f docker-compose.test.yml"
+compose="docker compose -p solusvires-preview -f docker-compose.test.yml"
 if [ "${1:-}" = "down" ]; then
   $compose down -v --remove-orphans
   exit 0
