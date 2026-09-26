@@ -871,3 +871,32 @@ footer a {
   font-weight: 500;
   color: var(--ink);
 }
+
+/* ---------- In-page jump links (safety.html) ---------- */
+
+.jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.jump-links a {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.jump-links a:hover,
+.jump-links a:focus-visible {
+  border-color: var(--primary);
+  color: var(--ink);
+}
+
+section[id] {
+  scroll-margin-top: 5rem;
+}
