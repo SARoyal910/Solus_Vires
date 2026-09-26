@@ -135,11 +135,13 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 - Either way, record the decision in section 1 of this file.
 - **Tests:** register without code → 403 with a clear message; with code → 201.
 
-### P2-F1 · First backup and restore — S — closes engineering "before next sprint" #4
+### ▶ P2-F1 · First backup and restore — S — closes engineering "before next sprint" #4
+*Scripts and `docs/RUNBOOK.md` written. Waiting on the owner: install `age`, create the offline key, choose the off-host folder, set the cron, run one rehearsal and log it in the runbook.*
 - `scripts/backup.sh`: `pg_dump -Fc` from the `db` container, encrypt with `age` to an off-host location. Cron it nightly on the host.
 - Restore it once into a scratch database, run the smoke probe against an app pointed at it, and write the steps and the date into a new `docs/RUNBOOK.md`.
 
-### One-liner copy fixes that ride along — S — closes U-9 (partial)
+### ✅ One-liner copy fixes that ride along — S — closes U-9 (partial)
+*Done on every page's nav; Partners stays reachable from Resources.*
 - `checkin.html`: "You're being tracked for check-ins" → "Your check-in schedule is on".
 - Nav: "Account" → "Notes & Check-ins"; move Partners from primary nav to footer (`html/shared.js` or wherever the nav is rendered, plus each page if it's static).
 
