@@ -14,7 +14,7 @@ def test_evidence_requires_login(client):
 
 def test_salt_can_only_be_set_once():
     a = register_and_login("survivor_a")
-    assert a.get("/api/evidence/salt").json() == {"salt": None}
+    assert a.get("/api/evidence/salt").json() == {"salt": None, "key_check": None}
     assert a.put("/api/evidence/salt", json={"salt": "c2FsdA"}).status_code == 200
     assert a.put("/api/evidence/salt", json={"salt": "b3RoZXI"}).status_code == 409
     assert a.get("/api/auth/me").json()["evidence_pin_set"] is True
@@ -50,3 +50,32 @@ def test_account_deletion_removes_everything():
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(EvidenceEntry)) == 0
         assert db.scalar(select(func.count()).select_from(TrustedContact)) == 0
+
+
+KEY_CHECK = {"ciphertext": "a2V5Y2hlY2s", "iv": "aXYxMjM0NTY3ODkw"}
+
+
+def test_pin_setup_stores_key_check_with_salt():
+    a = register_and_login("survivor_a")
+    a.put("/api/evidence/salt", json={"salt": "c2FsdA", "key_check": KEY_CHECK})
+    assert a.get("/api/evidence/salt").json() == {"salt": "c2FsdA", "key_check": KEY_CHECK}
+
+
+def test_key_check_backfill_is_write_once():
+    a = register_and_login("survivor_a")
+    assert a.put("/api/evidence/key-check", json=KEY_CHECK).status_code == 409  # no PIN yet
+
+    a.put("/api/evidence/salt", json={"salt": "c2FsdA"})  # legacy setup, no key-check
+    assert a.get("/api/evidence/salt").json()["key_check"] is None
+
+    assert a.put("/api/evidence/key-check", json=KEY_CHECK).status_code == 200
+    other = {"ciphertext": "b3RoZXI", "iv": "aXYxMjM0NTY3ODkw"}
+    assert a.put("/api/evidence/key-check", json=other).status_code == 409
+    assert a.get("/api/evidence/salt").json()["key_check"] == KEY_CHECK
+
+
+def test_key_check_is_per_user():
+    a = register_and_login("survivor_a")
+    b = register_and_login("survivor_b")
+    a.put("/api/evidence/salt", json={"salt": "c2FsdA", "key_check": KEY_CHECK})
+    assert b.get("/api/evidence/salt").json() == {"salt": None, "key_check": None}

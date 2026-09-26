@@ -10,6 +10,7 @@ from ..schemas.evidence import (
     CaseProfileResponse,
     EncryptedBlob,
     EvidenceEntryResponse,
+    KeyCheck,
     SaltResponse,
     SetSaltRequest,
 )
@@ -21,7 +22,7 @@ service = EvidenceService()
 
 @router.get("/salt", response_model=SaltResponse)
 async def get_salt(user: User = Depends(get_current_user)) -> SaltResponse:
-    return SaltResponse(salt=service.get_salt(user))
+    return SaltResponse(salt=service.get_salt(user), key_check=service.get_key_check(user))
 
 
 @router.put("/salt", response_model=SaltResponse)
@@ -30,8 +31,18 @@ async def set_salt(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> SaltResponse:
-    service.set_salt(db, user, payload.salt)
-    return SaltResponse(salt=payload.salt)
+    service.set_salt(db, user, payload.salt, payload.key_check)
+    return SaltResponse(salt=user.evidence_salt, key_check=service.get_key_check(user))
+
+
+@router.put("/key-check", response_model=SaltResponse)
+async def set_key_check(
+    payload: KeyCheck,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SaltResponse:
+    service.set_key_check(db, user, payload)
+    return SaltResponse(salt=user.evidence_salt, key_check=service.get_key_check(user))
 
 
 @router.get("/case-profile", response_model=CaseProfileResponse | None)

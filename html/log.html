@@ -35,16 +35,17 @@
       <div class="section-head">
         <h1>Set up your notes PIN</h1>
         <p>This PIN encrypts your notes in this browser before anything is sent or saved. It is separate from your account password and cannot be reset or recovered. If you forget it, these notes cannot be unlocked again by anyone, including us.</p>
+        <p>It is also the only thing protecting your notes if our database were ever stolen, so make it long. A few unrelated words works well, like <em>kettle-harbor-violet</em>. Write it down wherever you keep your recovery codes.</p>
       </div>
       <article class="card">
         <form id="pin-setup-form">
           <label>
-            Choose a PIN or passphrase (10+ characters recommended)
-            <input type="password" name="pin" minlength="6" required autocomplete="off">
+            Choose a PIN or passphrase (at least 12 characters)
+            <input type="password" name="pin" minlength="12" required autocomplete="off">
           </label>
           <label>
             Confirm PIN
-            <input type="password" name="pin_confirm" minlength="6" required autocomplete="off">
+            <input type="password" name="pin_confirm" minlength="12" required autocomplete="off">
           </label>
           <button type="submit" class="btn primary">Set PIN and continue</button>
           <p id="pin-setup-status" class="status" aria-live="polite"></p>
@@ -151,6 +152,7 @@
 
     function lockNow() {
       cryptoKey = null;
+      pendingConfirmPin = null;
       if (autoLockTimer) clearTimeout(autoLockTimer);
       showView("pinUnlock");
     }
@@ -233,34 +235,63 @@
       await loadEntries();
     }
 
-    // Zero-knowledge encryption means the server can never confirm a PIN is correct.
-    // Before treating an unlock as successful, try decrypting something that was
-    // encrypted under the real key. If nothing has been saved yet, there is nothing
-    // to check against, so a first-ever unlock is allowed through unverified.
-    async function verifyKey(key) {
-      const profileRes = await api("/api/evidence/case-profile");
-      const profile = await profileRes.json();
-      if (profile) {
-        try {
-          await EvidenceCrypto.decryptJSON(key, profile.ciphertext, profile.iv);
-          return true;
-        } catch (e) {
-          return false;
-        }
+    // Zero-knowledge encryption means the server can never confirm a PIN is
+    // correct; the browser has to. Accounts set up with the current page have a
+    // key-check (a constant encrypted under the PIN) and that alone decides.
+    //
+    // Older accounts don't. For those, try decrypting something already saved,
+    // then store a key-check so it's never guessed again. If nothing is saved
+    // there's nothing to test against, so ask for the PIN twice instead: letting
+    // a single unverified PIN through is what split people's notes in two
+    // (engineering review H3).
+    let pendingConfirmPin = null;
+
+    async function tryDecryptSavedData(key) {
+      const profile = await (await api("/api/evidence/case-profile")).json();
+      const entries = profile ? [] : await (await api("/api/evidence/entries")).json();
+      const sample = profile || entries[0];
+      if (!sample) return null;
+      try {
+        await EvidenceCrypto.decryptJSON(key, sample.ciphertext, sample.iv);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function storeKeyCheck(key) {
+      const blob = await EvidenceCrypto.makeKeyCheck(key);
+      const res = await api("/api/evidence/key-check", { method: "PUT", body: JSON.stringify(blob) });
+      if (res.ok) return true;
+      if (res.status === 409) {
+        // Another tab stored one first; it is now the authority.
+        const data = await (await api("/api/evidence/salt")).json();
+        return data.key_check ? EvidenceCrypto.keyMatchesCheck(key, data.key_check) : false;
+      }
+      throw new Error("could not store key check");
+    }
+
+    // Returns "ok", "wrong", "confirm" (legacy empty vault, ask again), or "mismatch".
+    async function checkPin(pin, key, saltData) {
+      if (saltData.key_check) {
+        return (await EvidenceCrypto.keyMatchesCheck(key, saltData.key_check)) ? "ok" : "wrong";
       }
 
-      const entriesRes = await api("/api/evidence/entries");
-      const entries = await entriesRes.json();
-      if (entries.length > 0) {
-        try {
-          await EvidenceCrypto.decryptJSON(key, entries[0].ciphertext, entries[0].iv);
-          return true;
-        } catch (e) {
-          return false;
-        }
+      const decrypted = await tryDecryptSavedData(key);
+      if (decrypted === false) return "wrong";
+      if (decrypted === true) {
+        await storeKeyCheck(key).catch(() => {}); // verified already; backfill is best-effort
+        return "ok";
       }
 
-      return true;
+      if (pendingConfirmPin === null) {
+        pendingConfirmPin = pin;
+        return "confirm";
+      }
+      const matches = pendingConfirmPin === pin;
+      pendingConfirmPin = null;
+      if (!matches) return "mismatch";
+      return (await storeKeyCheck(key)) ? "ok" : "wrong";
     }
 
     document.getElementById("pin-setup-form").addEventListener("submit", async (event) => {
@@ -271,15 +302,31 @@
         status.textContent = "PINs do not match.";
         return;
       }
-      if (form.pin.value.length < 6) {
+      if (form.pin.value.length < 12) {
         status.textContent = "PIN is too short.";
         return;
       }
       const salt = EvidenceCrypto.generateSaltBase64();
+      status.textContent = "Setting up...";
       try {
-        await api("/api/evidence/salt", { method: "PUT", body: JSON.stringify({ salt }) });
-        cryptoKey = await EvidenceCrypto.deriveKey(form.pin.value, salt);
+        const key = await EvidenceCrypto.deriveKey(form.pin.value, salt);
+        const key_check = await EvidenceCrypto.makeKeyCheck(key);
+        const res = await api("/api/evidence/salt", {
+          method: "PUT",
+          body: JSON.stringify({ salt, key_check }),
+        });
+        if (res.status === 409) {
+          // A PIN was already set (e.g. in another tab). Never write notes under
+          // a salt the server didn't keep; send them to the unlock screen.
+          form.reset();
+          status.textContent = "";
+          showView("pinUnlock");
+          return;
+        }
+        if (!res.ok) throw new Error("salt not saved");
+        cryptoKey = key;
         form.reset();
+        status.textContent = "";
         await enterUnlocked();
       } catch (e) {
         status.textContent = "Unable to set up your PIN right now.";
@@ -298,15 +345,23 @@
           status.textContent = "No PIN set up yet.";
           return;
         }
-        const key = await EvidenceCrypto.deriveKey(form.pin.value, data.salt);
-        cryptoKey = key;
-        const ok = await verifyKey(key);
-        if (!ok) {
-          cryptoKey = null;
+        const pin = form.pin.value;
+        const key = await EvidenceCrypto.deriveKey(pin, data.salt);
+        const result = await checkPin(pin, key, data);
+        form.reset();
+        if (result === "confirm") {
+          status.textContent = "Enter the same PIN once more to confirm it.";
+          return;
+        }
+        if (result === "mismatch") {
+          status.textContent = "Those didn't match. Enter your PIN again.";
+          return;
+        }
+        if (result !== "ok") {
           status.textContent = "Incorrect PIN.";
           return;
         }
-        form.reset();
+        cryptoKey = key;
         status.textContent = "";
         await enterUnlocked();
       } catch (e) {

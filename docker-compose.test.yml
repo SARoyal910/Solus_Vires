@@ -31,5 +31,28 @@ services:
       - pip_cache:/root/.cache/pip
     command: sh -c "pip install -q -r requirements-dev.txt && ruff check . && pytest -p no:cacheprovider $${PYTEST_ARGS:-}"
 
+  # Local preview of this branch: the site + API with a throwaway database.
+  # Started by scripts/preview.sh; never touches the live stack.
+  preview:
+    image: python:3.12-slim
+    working_dir: /backend
+    depends_on:
+      db-test:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+psycopg://solusvires:test-only@db-test:5432/solusvires_test
+      - SITE_DIR=/site
+      - CHECKIN_TOKEN_SECRET=preview-only
+      - PUBLIC_BASE_URL=http://127.0.0.1:8099
+      - PIP_DISABLE_PIP_VERSION_CHECK=1
+      - PIP_ROOT_USER_ACTION=ignore
+    volumes:
+      - ./backend:/backend
+      - ./html:/site:ro
+      - pip_cache:/root/.cache/pip
+    ports:
+      - "127.0.0.1:8099:8000"
+    command: sh -c "pip install -q -r requirements.txt && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
 volumes:
   pip_cache:

@@ -101,7 +101,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 - Alternative: run `cloudflared` (Cloudflare Tunnel) and stop publishing ports 80/443 at all.
 - **Test:** direct `curl --resolve solusvires.com:443:<origin-ip>` is refused; the site still loads through Cloudflare.
 
-### P2-A3 · Wrong PIN can never fork the vault — S — closes H3
+### ✅ P2-A3 · Wrong PIN can never fork the vault — S — closes H3
+*Done (migration 0003, `PUT /api/evidence/key-check` write-once backfill, `log.html` checkPin; P2-B6 crypto tests pulled forward to `tests/web/`). Also fixed a second silent-loss bug found on the way: PIN setup ignored a failed or 409 salt save and kept encrypting under a salt the server never stored. PIN minimum raised to 12 (D5) in the same form. **Browser check still to do** at `scripts/preview.sh` → http://127.0.0.1:8099: (1) new PIN → lock → wrong PIN on the empty vault says "Incorrect PIN"; (2) right PIN unlocks; (3) legacy account (salt set via API with no key_check, nothing saved) asks for the PIN twice and rejects a mismatch.*
 - Migration `0003_evidence_key_check`: add `users.evidence_key_check_ciphertext` and `users.evidence_key_check_iv` (nullable `Text`).
 - API: extend `GET/PUT /api/evidence/salt` (`backend/app/api/evidence.py`, `schemas/evidence.py`) to carry the key-check blob alongside the salt. The server stores it opaquely; it's ciphertext of a constant.
 - Client (`html/evidence-crypto.js`, `html/log.html`):

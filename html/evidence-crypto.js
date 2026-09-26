@@ -61,4 +61,28 @@ async function decryptJSON(key, ciphertextBase64, ivBase64) {
   return JSON.parse(dec.decode(plaintextBuf));
 }
 
-window.EvidenceCrypto = { generateSaltBase64, deriveKey, encryptJSON, decryptJSON };
+// A fixed value encrypted under the PIN at setup. Decrypting it is how the
+// browser proves a PIN is right before anything is written with it; AES-GCM
+// refuses to decrypt under any other key.
+const KEY_CHECK_VALUE = "solusvires-key-check-v1";
+
+function makeKeyCheck(key) {
+  return encryptJSON(key, KEY_CHECK_VALUE);
+}
+
+async function keyMatchesCheck(key, keyCheck) {
+  try {
+    return (await decryptJSON(key, keyCheck.ciphertext, keyCheck.iv)) === KEY_CHECK_VALUE;
+  } catch (e) {
+    return false;
+  }
+}
+
+window.EvidenceCrypto = {
+  generateSaltBase64,
+  deriveKey,
+  encryptJSON,
+  decryptJSON,
+  makeKeyCheck,
+  keyMatchesCheck,
+};

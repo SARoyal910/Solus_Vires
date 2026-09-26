@@ -15,6 +15,10 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_salt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # A constant encrypted under the Notes PIN; lets the browser reject a wrong
+    # PIN even before any notes exist. Opaque ciphertext, like the notes.
+    evidence_key_check_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_key_check_iv: Mapped[str | None] = mapped_column(Text, nullable=True)
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

@@ -35,6 +35,16 @@ jobs:
       - run: ruff check .
       - run: pytest
 
+  web:
+    # Browser-side notes encryption, run under Node's WebCrypto.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node --test tests/web/
+
   headers:
     # Brings up the real nginx + api + db stack with a self-signed cert and
     # checks every page for the security headers.

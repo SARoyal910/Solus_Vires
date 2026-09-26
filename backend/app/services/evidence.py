@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..models.auth import User
 from ..models.evidence import CaseProfile, EvidenceEntry
-from ..schemas.evidence import EncryptedBlob
+from ..schemas.evidence import EncryptedBlob, KeyCheck
 
 logger = logging.getLogger("solusvires.evidence")
 
@@ -17,13 +17,38 @@ class EvidenceService:
     def get_salt(self, user: User) -> str | None:
         return user.evidence_salt
 
-    def set_salt(self, db: Session, user: User, salt: str) -> None:
+    def get_key_check(self, user: User) -> KeyCheck | None:
+        if user.evidence_key_check_ciphertext is None or user.evidence_key_check_iv is None:
+            return None
+        return KeyCheck(ciphertext=user.evidence_key_check_ciphertext, iv=user.evidence_key_check_iv)
+
+    def set_salt(self, db: Session, user: User, salt: str, key_check: KeyCheck | None) -> None:
         if user.evidence_salt is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Evidence PIN salt is already set for this account.",
             )
         user.evidence_salt = salt
+        if key_check is not None:
+            user.evidence_key_check_ciphertext = key_check.ciphertext
+            user.evidence_key_check_iv = key_check.iv
+        db.commit()
+
+    def set_key_check(self, db: Session, user: User, key_check: KeyCheck) -> None:
+        """One-time backfill for accounts whose PIN predates the key-check.
+
+        Write-once, like the salt: once a key-check exists it is the only thing
+        that decides whether a PIN is right, so it must not be replaceable.
+        """
+        if user.evidence_salt is None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Set up a PIN first.")
+        if user.evidence_key_check_ciphertext is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This account's PIN check is already set.",
+            )
+        user.evidence_key_check_ciphertext = key_check.ciphertext
+        user.evidence_key_check_iv = key_check.iv
         db.commit()
 
     def get_case_profile(self, db: Session, user: User) -> CaseProfile | None:
