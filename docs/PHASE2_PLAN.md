@@ -142,6 +142,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 
 **Exit gate:** H1–H6 closed; probe green against live; CI green; one backup restored and documented; D1 recorded.
 
+**Deployed 2026-09-26** (`main` at `e36b0ab` on the droplet): live probe green on all 13 paths, sign-up gate answering, direct-to-droplet connections refused, migrations 0003/0004 applied, CI green. Remaining for the gate: restore one droplet backup (P2-F1).
+
 ---
 
 ## Sprint 2 — Hardening tail
