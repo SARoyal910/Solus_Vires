@@ -163,3 +163,20 @@ def test_expired_device_is_removed_for_every_contact(monkeypatch):
     CheckinService().run_due_alerts_once()
 
     assert survivor_b.get("/api/checkin/contacts").json()[0]["subscribed_devices"] == 0
+
+
+def test_alerts_point_contacts_to_guidance(monkeypatch):
+    pushes, emails = [], []
+    monkeypatch.setattr(checkin_service, "send_push", lambda sub, **kw: pushes.append(kw))
+    monkeypatch.setattr(checkin_service, "send_email", lambda **kw: emails.append(kw))
+    survivor, token = _accepted_contact("survivor_a")
+    survivor.post(f"/api/checkin/invite/{token}/subscribe", json=SUBSCRIPTION)
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 24, "grace_hours": 6})
+    _make_everyone_overdue()
+
+    CheckinService().run_due_alerts_once()
+
+    assert pushes[0]["url"].endswith("/if-you-get-an-alert.html")
+    alert = emails[-1]["html_content"]
+    assert "/if-you-get-an-alert.html" in alert
+    assert "every 6 hours" in alert

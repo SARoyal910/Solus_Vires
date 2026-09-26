@@ -8,7 +8,7 @@ base="${1:?usage: probe_headers.sh BASE_URL}"
 curl_opts="-s -o /dev/null -D -"
 [ "${PROBE_INSECURE:-0}" = "1" ] && curl_opts="$curl_opts -k"
 
-paths="/ /index.html /is-this-abuse.html /for-men.html /emergency.html /resources.html /safety.html /legal.html /recovery.html
+paths="/ /index.html /is-this-abuse.html /for-men.html /help-someone.html /if-you-get-an-alert.html /emergency.html /resources.html /safety.html /legal.html /recovery.html
 /contact.html /account.html /log.html /checkin.html /checkin-invite.html /api/health"
 required="x-frame-options x-content-type-options referrer-policy x-robots-tag strict-transport-security"
 

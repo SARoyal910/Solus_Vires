@@ -47,7 +47,7 @@ def _parse_contact_token(token: str) -> uuid.UUID:
     return contact_id
 
 
-def _invite_email_html(username: str, accept_url: str) -> str:
+def _invite_email_html(username: str, accept_url: str, base_url: str) -> str:
     return f"""
     <p>{username} has added you as a <strong>safety check-in contact</strong> on Solus Vires,
     a private safety resource site.</p>
@@ -55,15 +55,20 @@ def _invite_email_html(username: str, accept_url: str) -> str:
     so you can check on them. You'll only receive anything if that happens.</p>
     <p><a href="{accept_url}">View this invite and choose whether to accept</a></p>
     <p>If you don't know why you're receiving this, you can safely ignore it or decline on that page.</p>
+    <p>Want to know how to support someone?
+    <a href="{base_url}/help-someone.html">How to help someone you care about</a></p>
     """.strip()
 
 
-def _alert_email_html(username: str, manage_url: str) -> str:
+def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hours: int) -> str:
     return f"""
     <p><strong>{username} hasn't checked in on Solus Vires as expected.</strong></p>
     <p>This is an automated safety check-in alert. It does not necessarily mean something is
     wrong, but {username} set this up to reach you if they miss a scheduled check-in.
-    Consider reaching out to them directly.</p>
+    Consider reaching out to them the way you normally would. Don't contact the person they may
+    be afraid of. If you believe they are in danger right now, call 911.</p>
+    <p><a href="{base_url}/if-you-get-an-alert.html">What to do when you get this alert</a></p>
+    <p>You'll get this alert again every {repeat_hours} hours until {username} checks in.</p>
     <p><a href="{manage_url}">Manage or stop these alerts</a></p>
     """.strip()
 
@@ -86,7 +91,7 @@ class CheckinService:
             to_email=contact.contact_email,
             to_name=contact.nickname,
             subject=f"{user.username} added you as a safety check-in contact",
-            html_content=_invite_email_html(user.username, accept_url),
+            html_content=_invite_email_html(user.username, accept_url, settings.public_base_url),
         )
 
     def add_contact(self, db: Session, user: User, payload: TrustedContactCreate) -> TrustedContact:
@@ -275,7 +280,7 @@ class CheckinService:
                         sub,
                         title="Solus Vires check-in alert",
                         body=f"{user.username} missed a scheduled check-in.",
-                        url=settings.public_base_url,
+                        url=f"{settings.public_base_url}/if-you-get-an-alert.html",
                     )
                 except PushSubscriptionExpired:
                     # The device is gone for every contact it served, not just this one.
@@ -287,7 +292,9 @@ class CheckinService:
                 to_email=contact.contact_email,
                 to_name=contact.nickname,
                 subject=f"Check-in alert: {user.username} missed a check-in",
-                html_content=_alert_email_html(user.username, manage_url),
+                html_content=_alert_email_html(
+                    user.username, manage_url, settings.public_base_url, settings.checkin_alert_repeat_hours
+                ),
             )
 
         schedule.last_alert_sent_at = datetime.now(timezone.utc)
