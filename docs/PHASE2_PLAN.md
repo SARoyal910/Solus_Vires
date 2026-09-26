@@ -25,15 +25,15 @@ Each blocks the tickets listed; D1 must be settled before Sprint 1 ends, the res
 
 | # | Decision | Recommendation | Blocks | Decided |
 |---|---|---|---|---|
-| D1 | Sign-ups: invite-gate or prototype banner | **Invite-gate** (`BETA_SIGNUPS_ENABLED=false` + invite codes) | P2-A7 | ☐ |
-| D2 | Name on the About page | Real individual name + stated intent to seek a nonprofit sponsor | P2-C1 | ☐ |
-| D3 | Contact form: wire to monitored inbox, or remove | Remove until someone can commit to a response window | P2-C5 | ☐ |
-| D4 | Alert email: always-send or fallback-only | Always-send; fix the docs | P2-A12 | ☐ |
-| D5 | Notes PIN minimum | 12 characters, passphrase encouraged | P2-A10 | ☐ |
+| D1 | Sign-ups: invite-gate or prototype banner | **Invite-gate** (`BETA_SIGNUPS_ENABLED=false` + invite codes) | P2-A7 | ✅ Invite-gate (2026-09-26) |
+| D2 | Name on the About page | Real individual name + stated intent to seek a nonprofit sponsor | P2-C1 | ✅ Real name (2026-09-26); exact wording confirmed when writing P2-C1 |
+| D3 | Contact form: wire to monitored inbox, or remove | Remove until someone can commit to a response window | P2-C5 | ✅ **Monitored inbox** (2026-09-26): wire to the owner's email via Brevo with a stated response window and a 'not for emergencies' line. P2-C5 changes accordingly |
+| D4 | Alert email: always-send or fallback-only | Always-send; fix the docs | P2-A12 | Default: recommendation, open to change |
+| D5 | Notes PIN minimum | 12 characters, passphrase encouraged | P2-A10 | ✅ 12 characters (2026-09-26) |
 | D6 | Who is the advocacy reviewer / legal counsel | Identify and contact people during Sprint 1; send review packets in Sprint 3 (P2-C3/C4). External lead time is the long pole | P2-C3, P2-C4 | ☐ |
-| D7 | CAPTCHA on public endpoints (`TODO.md`) | **Defer.** Hosted CAPTCHAs (Turnstile, hCaptcha) are third-party scripts, which breaks the "no third parties on a monitored device" principle. The invite gate (P2-A7) plus real per-IP limits (P2-A1) cover registration for now. Revisit a self-hosted proof-of-work only if abuse alerting (P2-F3) shows a need. | — | ☐ |
-| D8 | Audit logging (`TODO.md`) | Make the decision inside the threat model (P2-C6): the default is to keep no login-IP history, and to write down why. | P2-C6 | ☐ |
-| D9 | How visibly to name men | **Say it plainly once, then write neutrally everywhere.** A single line on the homepage and About ("For anyone being hurt by a partner or family member, whatever your gender") plus a dedicated page. Gendered imagery or a separate "men's site" would split the resource. | P2-D1, P2-D9 | ☐ |
+| D7 | CAPTCHA on public endpoints (`TODO.md`) | **Defer.** Hosted CAPTCHAs (Turnstile, hCaptcha) are third-party scripts, which breaks the "no third parties on a monitored device" principle. The invite gate (P2-A7) plus real per-IP limits (P2-A1) cover registration for now. Revisit a self-hosted proof-of-work only if abuse alerting (P2-F3) shows a need. | — | Default: recommendation, open to change |
+| D8 | Audit logging (`TODO.md`) | Make the decision inside the threat model (P2-C6): the default is to keep no login-IP history, and to write down why. | P2-C6 | Default: recommendation, open to change |
+| D9 | How visibly to name men | **Say it plainly once, then write neutrally everywhere.** A single line on the homepage and About ("For anyone being hurt by a partner or family member, whatever your gender") plus a dedicated page. Gendered imagery or a separate "men's site" would split the resource. | P2-D1, P2-D9 | Default: recommendation, open to change |
 
 ---
 
@@ -67,11 +67,11 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 
 | ID | Ticket | Files | Size | Closes |
 |---|---|---|---|---|
-| P2-B1 | `pyproject.toml` with pinned deps (generate from current venv, then pin); `ruff` config; drop `requirements.txt` or generate it from the lockfile. Pin Python 3.12 in `.python-version`, recreate the venv on 3.12. | `backend/pyproject.toml`, `backend/Dockerfile`, `.python-version` | S | M10 |
-| P2-B2 | Test scaffolding: `pytest`, `httpx`, a `conftest.py` that spins a throwaway Postgres (Docker service in CI, `DATABASE_URL` override locally), runs `alembic upgrade head`, and yields a `TestClient` + a `register_and_login()` helper. | `backend/tests/conftest.py` | S | M10 |
-| P2-B3 | First tests against *current* behaviour (they document the baseline; some will be rewritten by Sprint 1 fixes): HMAC token sign/verify and tamper rejection; register → login → logout; evidence CRUD ownership (user B cannot read user A); `is_overdue()` edge cases; account deletion cascade. | `backend/tests/test_*.py` | M | M10 |
-| P2-B4 | GitHub Actions: ruff + pytest with a Postgres service; required status check on `main`. | `.github/workflows/ci.yml` | S | M10 |
-| P2-B5 | Header probe script: curls a list of paths, asserts `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Robots-Tag` (and later HSTS/CSP). Takes a base URL so it runs against CI nginx *and* live. Add it to CI against a built nginx container. **It will fail on `/log.html` today — that's the point; mark it expected-fail until P2-A2.** | `scripts/probe_headers.sh`, CI job | S | H2 (detection) |
+| ✅ P2-B1 | Pinned `requirements.txt` + `requirements-dev.txt` (pytest, ruff); `pyproject.toml` holds tool config only, so the Dockerfile is unchanged. Pin Python 3.12 in `.python-version`, recreate the venv on 3.12. | `backend/pyproject.toml`, `backend/Dockerfile`, `.python-version` | S | M10 |
+| ✅ P2-B2 | Test scaffolding (`scripts/test.sh` + `docker-compose.test.yml`: Python 3.12, tmpfs Postgres, separate compose project so it can't touch live containers; conftest refuses any DB not named `*_test`): `pytest`, `httpx`, a `conftest.py` that spins a throwaway Postgres (Docker service in CI, `DATABASE_URL` override locally), runs `alembic upgrade head`, and yields a `TestClient` + a `register_and_login()` helper. | `backend/tests/conftest.py` | S | M10 |
+| ✅ P2-B3 | First tests (27) against *current* behaviour (they document the baseline; some will be rewritten by Sprint 1 fixes): HMAC token sign/verify and tamper rejection; register → login → logout; evidence CRUD ownership (user B cannot read user A); `is_overdue()` edge cases; account deletion cascade. | `backend/tests/test_*.py` | M | M10 |
+| ▶ P2-B4 | GitHub Actions (`.github/workflows/ci.yml` written; runs once pushed; making it a required check on `main` is a GitHub setting): ruff + pytest with a Postgres service; required status check on `main`. | `.github/workflows/ci.yml` | S | M10 |
+| ✅ P2-B5 | Header probe script (baseline against live 2026-09-26: HSTS missing everywhere; all four headers missing on account/log/checkin/checkin-invite, confirming H2): curls a list of paths, asserts `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Robots-Tag` (and later HSTS/CSP). Takes a base URL so it runs against CI nginx *and* live. Add it to CI against a built nginx container. **It will fail on `/log.html` today — that's the point; mark it expected-fail until P2-A2.** | `scripts/probe_headers.sh`, CI job | S | H2 (detection) |
 
 **Exit gate:** CI green on `dev` with ~10 tests; probe runs in CI and against `https://solusvires.com`.
 
@@ -171,7 +171,7 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 | P2-C2 | `/privacy.html` plus a short plain-language terms/disclaimer section: "not an emergency service, not legal advice, prototype status" (Priya's "no terms" finding; counsel reviews both). Privacy covers, exactly what is stored (username, password hash, recovery-code hashes, notes ciphertext, salt + key-check, contact emails and nicknames, push endpoints, schedule timestamps), what is not (IPs are held in memory only for rate limiting — verify this is true before writing it), retention, how to delete, what a subpoena could and could not obtain. | M | U-1 |
 | P2-C3 | Legal review request: package privacy statement, emergency-language claims, mandatory-reporting question, contact-email handling. Output lands in `docs/legal/`. | External | DESIGN2 §1.4 |
 | P2-C4 | Advocacy review request: one DV organization walks the site, notes flow, check-in flow. Ask for (or add a second reviewer with) experience serving male survivors, and ask them to read `/for-men.html` specifically. Output lands in `docs/advocacy/`. | External | DESIGN2 §1.5 |
-| P2-C5 | Contact form per D3. If removed: replace `contact.html` body with "We do not offer direct support; here is who does" + hotline cards; delete `/api/contact` route, service, and its limiter. | S | U-10 |
+| P2-C5 | Contact form per D3 (monitored inbox): `services/contact.py` sends each message to `CONTACT_INBOX_EMAIL` via the existing Brevo client (fail-soft, like alerts); the form states the response window and "not for emergencies — call or text the Hotline" above the Send button; the confirmation says the same. Nothing is stored in the database. Test: message triggers one send; empty inbox setting refuses the form with a clear message rather than pretending. | S | U-10 |
 | P2-C6 | `docs/THREAT_MODEL.md`: actors (abuser with device access, abuser who knows the username, DB compromise, hostile trusted contact, subpoena, Cloudflare/host), each with mitigations mapped to files and the tests that prove them. Fold in H1–H6 as worked examples. Record decisions D7 (CAPTCHA) and D8 (audit logging) and the MFA deferral here, with the reasoning. | M | TODO "threat model", "audit logging", "MFA" |
 
 **Exit gate:** About + Privacy live and linked everywhere; C3 and C4 requests sent (dates recorded here); threat model merged.

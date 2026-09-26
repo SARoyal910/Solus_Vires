@@ -1,0 +1,23 @@
+# Tool configuration only. Dependencies are pinned in requirements*.txt,
+# which the Dockerfile and CI install directly.
+[project]
+name = "solusvires-api"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["B008"]  # FastAPI's Depends()/Cookie() defaults are the idiom
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "conftest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

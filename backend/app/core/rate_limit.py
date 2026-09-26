@@ -15,10 +15,17 @@ class RateLimiter:
     track its own counters and the effective limit would multiply silently.
     """
 
+    instances: list["RateLimiter"] = []
+
     def __init__(self, max_requests: int, window_seconds: float):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+        RateLimiter.instances.append(self)
+
+    def reset(self) -> None:
+        """Forgets all tracked clients. Used by the test suite between tests."""
+        self._hits.clear()
 
     def _client_ip(self, request: Request) -> str:
         # Set by nginx from $remote_addr (nginx/conf.d/default.conf), which
