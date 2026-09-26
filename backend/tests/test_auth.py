@@ -1,3 +1,4 @@
+from app.core import login_throttle as login_throttle_module
 from conftest import PASSWORD, login, make_client, register
 
 
@@ -68,16 +69,46 @@ def test_recovery_code_resets_password_once_and_ends_sessions():
     assert reused.status_code == 400
 
 
-def test_account_lockout_baseline(client):
-    """Documents CURRENT behaviour: 8 failures lock the account even for the right password.
-
-    This is engineering finding H5 (an abuser who knows the username can lock the
-    survivor out). P2-A5 replaces this test with per-(IP, username) delays.
-    """
+def test_failed_logins_never_lock_the_owner_out_from_elsewhere(client, trust_proxy):
+    """H5: someone guessing from one address must not lock the survivor out."""
     register(client, "survivor_a")
-    for _ in range(8):
-        assert login(client, "survivor_a", "wrong password").status_code == 401
-    assert login(client, "survivor_a").status_code == 429
+    for _ in range(12):
+        login(client, "survivor_a", "wrong password", ip="6.6.6.6")
+    assert login(client, "survivor_a", ip="1.1.1.1").status_code == 200
+
+
+def test_guessing_pair_is_slowed_down(client, trust_proxy, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(login_throttle_module, "_now", lambda: clock[0])
+    register(client, "survivor_a")
+
+    for _ in range(3):
+        assert login(client, "survivor_a", "wrong", ip="6.6.6.6").status_code == 401
+    # The 4th attempt (even with the right password) must wait a moment...
+    blocked = login(client, "survivor_a", ip="6.6.6.6")
+    assert blocked.status_code == 429
+    assert blocked.headers["Retry-After"] == "1"
+    # ...and succeeds once it has.
+    clock[0] += 1.5
+    assert login(client, "survivor_a", ip="6.6.6.6").status_code == 200
+
+
+def test_delay_grows_and_is_capped():
+    delays = [login_throttle_module.delay_for(n) for n in range(12)]
+    assert delays[:3] == [0, 0, 0]
+    assert delays[3:8] == [1, 2, 4, 8, 16]
+    assert max(delays) == login_throttle_module.MAX_DELAY_SECONDS
+
+
+def test_recovery_code_works_while_throttled_and_clears_the_wait(client, trust_proxy):
+    codes = register(client, "survivor_a")
+    for _ in range(6):
+        login(client, "survivor_a", "wrong", ip="6.6.6.6")
+    assert login(client, "survivor_a", ip="6.6.6.6").status_code == 429
+
+    body = {"username": "survivor_a", "recovery_code": codes[0], "new_password": "a brand new password"}
+    assert client.post("/api/auth/recover", json=body, headers={"X-Real-IP": "6.6.6.6"}).status_code == 200
+    assert login(client, "survivor_a", "a brand new password", ip="6.6.6.6").status_code == 200
 
 
 def test_register_is_rate_limited_per_ip(client):

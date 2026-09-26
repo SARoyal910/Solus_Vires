@@ -4,13 +4,13 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, Response, status
 from sqlalchemy.orm import Session
 
+from ..core.login_throttle import login_throttle
 from ..core.security import (
     create_session,
     delete_all_sessions,
     delete_session,
     generate_recovery_codes,
     hash_secret,
-    is_locked_out,
     register_failed_login,
     reset_failed_logins,
     verify_secret,
@@ -41,21 +41,20 @@ class AuthService:
         logger.info("account_registered")
         return user, codes
 
-    def login(self, db: Session, response: Response, payload: LoginRequest) -> User:
+    def login(self, db: Session, response: Response, payload: LoginRequest, client_ip: str) -> User:
+        login_throttle.check(client_ip, payload.username)
+
         user = db.query(User).filter(User.username == payload.username).first()
         if user is None:
+            login_throttle.record_failure(client_ip, payload.username)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
-        if is_locked_out(user):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many failed attempts. Try again later.",
-            )
-
         if not verify_secret(user.password_hash, payload.password):
+            login_throttle.record_failure(client_ip, payload.username)
             register_failed_login(db, user)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
+        login_throttle.record_success(client_ip, payload.username)
         reset_failed_logins(db, user)
         create_session(db, response, user)
         logger.info("account_login")
@@ -91,6 +90,7 @@ class AuthService:
         user.failed_login_count = 0
         user.locked_until = None
         db.commit()
+        login_throttle.forget_username(user.username)
 
         delete_all_sessions(db, str(user.id))
         response.delete_cookie("sv_session", path="/")

@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Cookie, Depends, Response
+from fastapi import APIRouter, Cookie, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from ..core.db import get_db
-from ..core.rate_limit import RateLimiter
+from ..core.rate_limit import RateLimiter, client_ip
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.auth import (
@@ -21,8 +21,8 @@ from ..services.auth import AuthService
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 service = AuthService()
 
-# Per-IP, on top of the per-account lockout in core/security.py - that alone
-# doesn't stop one IP from spraying attempts across many usernames.
+# Per-IP, on top of the per-(IP, username) slowdown in core/login_throttle.py -
+# that alone doesn't stop one IP from spraying attempts across many usernames.
 register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
 login_limiter = RateLimiter(max_requests=20, window_seconds=300)
 recover_limiter = RateLimiter(max_requests=10, window_seconds=3600)
@@ -36,9 +36,9 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> R
 
 @router.post("/login", response_model=LoginResponse, dependencies=[Depends(login_limiter)])
 async def login(
-    payload: LoginRequest, response: Response, db: Session = Depends(get_db)
+    payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
 ) -> LoginResponse:
-    service.login(db, response, payload)
+    service.login(db, response, payload, client_ip(request))
     return LoginResponse(ok=True)
 
 

@@ -86,7 +86,7 @@ New routers, following the existing `api/` → `schemas/` → `services/` layeri
 
 **`backend/app/api/auth.py`** (`AuthService` in `backend/app/services/auth.py`)
 - `POST /api/auth/register` — `{username, password}` → creates the account + 10 recovery codes, returned once.
-- `POST /api/auth/login` — sets the session cookie; enforces lockout backoff.
+- `POST /api/auth/login` — sets the session cookie. Failed attempts slow down only the guessing (IP, username) pair, never the account as a whole (`core/login_throttle.py`, Phase 2 P2-A5; the old 8-strikes account lock let anyone who knew a username lock the survivor out).
 - `POST /api/auth/logout` — deletes the current session.
 - `POST /api/auth/logout-all` — deletes every session for the account.
 - `POST /api/auth/recover` — `{username, recovery_code, new_password}`; single-use code check, invalidates all sessions, never touches evidence data.
@@ -170,6 +170,8 @@ Root cause: `log.html`'s unlock handler derived a key from whatever was typed an
 **Fix applied** (`html/log.html`): added a `verifyKey(key)` check that runs before treating an unlock as successful. It tries to decrypt the existing case profile (or, if none exists yet, the first existing entry) with the freshly derived key; only on a successful decrypt does the page unlock. If decryption fails, the key is discarded, the page stays on the locked screen, and "Incorrect PIN." is shown. Re-verified after the fix, both via direct DOM/event testing and through the real UI: wrong PIN → stays locked, shows "Incorrect PIN.", `cryptoKey` cleared; correct PIN → unlocks normally, existing entry still decrypts correctly (no regression).
 
 One inherent limitation this fix cannot close, already true of zero-knowledge designs generally: on the very first-ever unlock attempt, before anything has ever been saved, there is nothing to test-decrypt against, so an incorrect PIN at that exact moment cannot be distinguished from a correct one. This only matters in the narrow window between PIN setup and the first saved item, and is disclosed as a residual edge case rather than something to silently paper over.
+
+**Closed in Phase 2 (P2-A3):** PIN setup now also stores a key-check (a constant encrypted under the PIN), and unlock decides by decrypting it, so a wrong PIN is rejected even on an empty vault. Accounts from before the change are verified against saved data once and get a key-check written; if nothing was ever saved, the PIN must be entered twice. See `docs/PHASE2_PLAN.md`.
 
 - The "Lock now" button was also exercised directly (same code path as the idle-timeout auto-lock) and correctly returns to the PIN-locked screen.
 

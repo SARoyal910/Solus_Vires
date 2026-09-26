@@ -111,7 +111,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
   - **Backfill for existing users:** if no key-check exists but entries/profile do, verify against them as today, and on success write the key-check. If no key-check *and* no data exists, treat it as setup: ask for the PIN twice, then write the key-check.
 - **Tests:** API round-trips the blob; ownership. Client logic covered by P2-B6 (Sprint 2) — until then, a manual test script in the PR description: set PIN → reload → wrong PIN on empty vault is rejected.
 
-### P2-A5 · Lockout can't be weaponised against the survivor — M — closes H5
+### ✅ P2-A5 · Lockout can't be weaponised against the survivor — M — closes H5
+*Done: `core/login_throttle.py` (free attempts 3, then 1-2-4-8-16-30 s per (IP, username), `Retry-After`); account counter is a signal only; recovery clears every pending wait for that username. Unknown usernames are throttled the same way so the throttle can't reveal which names exist.*
 - Replace the account-only hard lock in `backend/app/core/security.py`:
   - Track failures per `(client_ip, username_lower)` in the in-process limiter (same single-process caveat as today's limiter; documented).
   - Progressive delay per pair (e.g. 0, 0, 1s, 2s, 4s … capped at 30s) instead of a hard lock.

@@ -15,9 +15,8 @@ def _request(headers: dict[str, str], client_host: str = "10.0.0.5") -> Request:
 
 def _with_trust(monkeypatch, trusted: bool) -> None:
     settings = get_settings()
-    monkeypatch.setattr(rate_limit, "get_settings", lambda: settings.__class__(
-        **{**settings.__dict__, "trust_proxy_headers": trusted}
-    ))
+    patched = settings.__class__(**{**settings.__dict__, "trust_proxy_headers": trusted})
+    monkeypatch.setattr(rate_limit, "get_settings", lambda: patched)
 
 
 def test_spoofed_real_ip_is_ignored_without_trusted_proxy(monkeypatch):

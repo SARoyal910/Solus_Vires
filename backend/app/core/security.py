@@ -13,8 +13,6 @@ from .config import get_settings
 from .db import get_db
 
 SESSION_COOKIE_NAME = "sv_session"
-MAX_FAILED_LOGINS = 8
-LOCKOUT_MINUTES = 15
 
 _hasher = PasswordHasher()
 
@@ -35,14 +33,10 @@ def generate_recovery_codes(count: int = 10) -> list[str]:
     return [f"{secrets.token_hex(5)}-{secrets.token_hex(5)}" for _ in range(count)]
 
 
-def is_locked_out(user: User) -> bool:
-    return user.locked_until is not None and user.locked_until > datetime.now(timezone.utc)
-
-
 def register_failed_login(db: Session, user: User) -> None:
+    """Counts failures on the account as a signal only. It never locks the
+    account: see core/login_throttle.py for why, and for what slows guessing."""
     user.failed_login_count += 1
-    if user.failed_login_count >= MAX_FAILED_LOGINS:
-        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
     db.commit()
 
 

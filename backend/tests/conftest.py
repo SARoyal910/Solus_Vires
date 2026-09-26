@@ -31,7 +31,10 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from app.core import rate_limit  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
 from app.core.db import Base, engine  # noqa: E402
+from app.core.login_throttle import login_throttle  # noqa: E402
 from app.core.rate_limit import RateLimiter  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -56,6 +59,15 @@ def clean_state() -> Iterator[None]:
         conn.execute(text(f"TRUNCATE {tables} CASCADE"))
     for limiter in RateLimiter.instances:
         limiter.reset()
+    login_throttle.reset()
+
+
+@pytest.fixture
+def trust_proxy(monkeypatch) -> None:
+    """Behave as if behind nginx, so tests can pick a client IP with X-Real-IP."""
+    settings = get_settings()
+    trusted = settings.__class__(**{**settings.__dict__, "trust_proxy_headers": True})
+    monkeypatch.setattr(rate_limit, "get_settings", lambda: trusted)
 
 
 def make_client() -> TestClient:
@@ -75,8 +87,9 @@ def register(client: TestClient, username: str, password: str = PASSWORD) -> lis
     return response.json()["recovery_codes"]
 
 
-def login(client: TestClient, username: str, password: str = PASSWORD):
-    return client.post("/api/auth/login", json={"username": username, "password": password})
+def login(client: TestClient, username: str, password: str = PASSWORD, ip: str | None = None):
+    headers = {"X-Real-IP": ip} if ip else {}
+    return client.post("/api/auth/login", json={"username": username, "password": password}, headers=headers)
 
 
 def register_and_login(username: str) -> TestClient:
