@@ -18,6 +18,17 @@ How to deploy, back up, and restore Solus Vires. Keep this current; the
   (branch `phase2`). Preview with `scripts/preview.sh`
   (http://127.0.0.1:8099, throwaway database). Test with `scripts/test.sh`.
 
+## Cloudflare settings the site depends on
+
+- **Web Analytics / Real User Measurements (RUM): Disabled.** When on,
+  Cloudflare injects a third-party analytics script into every page,
+  including /log.html, which breaks the privacy statement ("no analytics,
+  no third-party scripts"). Found and disabled 2026-09-26. Check after any
+  Cloudflare change: `curl -s https://solusvires.com/log.html | grep -c cloudflareinsights`
+  must print 0.
+- **Authenticated Origin Pulls: Global, on.** nginx refuses connections
+  without Cloudflare's client certificate.
+
 ## Deploying
 
 On the Mac:
