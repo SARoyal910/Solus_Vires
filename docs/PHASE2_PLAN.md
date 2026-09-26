@@ -121,7 +121,8 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 - Leave `users.failed_login_count` / `locked_until` columns in place for one release, unused; drop them in a later migration.
 - **Tests:** 8 failures from IP A do not block a correct login from IP B; delay grows for the attacking pair; recovery bypasses.
 
-### P2-A6 · Push device can't be silently stolen by another invite — M — closes H4
+### ✅ P2-A6 · Push device can't be silently stolen by another invite — M — closes H4
+*Done (migration 0004). Also: re-subscribing refreshes the device's keys under every contact it serves, and an expired device is removed for all of them. The survivor-visible "a contact's push died" flag moves to P2-E5, which owns that UI.*
 - Minimal fix now (keeps the schema small): migration `0004_push_subscription_scope` drops the global unique on `push_subscriptions.endpoint` and adds `UNIQUE(trusted_contact_id, endpoint)`.
 - `services/checkin.py` `add_subscription()`: upsert on `(trusted_contact_id, endpoint)` instead of re-pointing an existing row.
 - Dead-endpoint pruning (410/404 from the push service): delete **every** row with that endpoint, and set a flag the survivor can see (feeds P2-E5).

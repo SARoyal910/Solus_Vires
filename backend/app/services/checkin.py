@@ -187,13 +187,16 @@ class CheckinService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Accept the invite before subscribing."
             )
-        existing = db.query(PushSubscription).filter(PushSubscription.endpoint == payload.endpoint).first()
-        if existing is not None:
-            existing.trusted_contact_id = contact.id
-            existing.p256dh = payload.keys.p256dh
-            existing.auth = payload.keys.auth
-            existing.last_seen_at = datetime.now(timezone.utc)
-        else:
+        now = datetime.now(timezone.utc)
+        # The browser's current keys apply to every contact this device serves;
+        # stale keys would make pushes to the other invites silently unreadable.
+        same_device = db.query(PushSubscription).filter(PushSubscription.endpoint == payload.endpoint).all()
+        for sub in same_device:
+            sub.p256dh = payload.keys.p256dh
+            sub.auth = payload.keys.auth
+            sub.last_seen_at = now
+
+        if not any(sub.trusted_contact_id == contact.id for sub in same_device):
             db.add(
                 PushSubscription(
                     trusted_contact_id=contact.id,
@@ -275,7 +278,8 @@ class CheckinService:
                         url=settings.public_base_url,
                     )
                 except PushSubscriptionExpired:
-                    db.delete(sub)
+                    # The device is gone for every contact it served, not just this one.
+                    db.query(PushSubscription).filter(PushSubscription.endpoint == sub.endpoint).delete()
                     db.commit()
 
             manage_url = f"{settings.public_base_url}/checkin-invite.html?token={make_contact_token(contact.id)}"

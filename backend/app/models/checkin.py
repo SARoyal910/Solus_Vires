@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,15 +35,22 @@ class TrustedContact(Base):
 
 
 class PushSubscription(Base):
-    """One browser/device Web Push endpoint belonging to a trusted contact."""
+    """One browser/device Web Push endpoint belonging to a trusted contact.
+
+    The same endpoint can appear under several contacts: one person may be the
+    trusted contact for more than one survivor, from the same phone.
+    """
 
     __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("trusted_contact_id", "endpoint", name="uq_push_subscriptions_contact_endpoint"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     trusted_contact_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("trusted_contacts.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    endpoint: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     p256dh: Mapped[str] = mapped_column(Text, nullable=False)
     auth: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
