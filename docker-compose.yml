@@ -9,6 +9,7 @@ services:
     volumes:
       - ./html:/usr/share/nginx/html:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
       - ./certs:/etc/ssl/solusvires:ro
     depends_on:
       - api
@@ -25,6 +26,8 @@ services:
       - SITE_DIR=/usr/share/nginx/html
       - DATABASE_URL=postgresql+psycopg://solusvires:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@db:5432/solusvires
       - SESSION_COOKIE_SECURE=true
+      # nginx sets X-Real-IP to the real visitor; safe to trust behind it only.
+      - TRUST_PROXY_HEADERS=true
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://127.0.0.1:8000}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}

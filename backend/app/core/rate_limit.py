@@ -3,7 +3,25 @@ from collections import defaultdict, deque
 
 from fastapi import HTTPException, Request, status
 
+from .config import get_settings
+
 _MAX_TRACKED_KEYS = 10_000
+
+
+def client_ip(request: Request) -> str:
+    """The address to rate-limit on.
+
+    X-Real-IP is only honoured when TRUST_PROXY_HEADERS is on, which the Docker
+    deployment sets because nginx always overwrites that header with the
+    visitor's address (see nginx/snippets/cloudflare-realip.conf). A bare
+    uvicorn leaves it off, so a client can't pick its own bucket by sending
+    the header itself.
+    """
+    if get_settings().trust_proxy_headers:
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip
+    return request.client.host if request.client else "unknown"
 
 
 class RateLimiter:
@@ -28,13 +46,7 @@ class RateLimiter:
         self._hits.clear()
 
     def _client_ip(self, request: Request) -> str:
-        # Set by nginx from $remote_addr (nginx/conf.d/default.conf), which
-        # always overwrites any client-supplied header of the same name -
-        # safe to trust when the app is reached through that proxy.
-        real_ip = request.headers.get("x-real-ip")
-        if real_ip:
-            return real_ip
-        return request.client.host if request.client else "unknown"
+        return client_ip(request)
 
     def _sweep(self, now: float) -> None:
         stale = [key for key, hits in self._hits.items() if not hits or now - hits[-1] > self.window_seconds]

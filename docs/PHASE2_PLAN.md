@@ -81,17 +81,25 @@ Sprints 4 and 5 can interleave; content and features touch different files. Exte
 
 **Goal:** every High finding fixed, tested, deployed, and probed live. Order within the sprint is by blast radius on the live site.
 
-### P2-A2 · Security headers on every location — S — closes H2, L7
+### ✅ P2-A2 · Security headers on every location — S — closes H2, L7
+*Done: `nginx/snippets/security-headers.conf` included at server level and in the private-pages location; `/api/*` hides the app's duplicate copies. Per-page robots `<meta>` tags kept as a second layer rather than removed. Probe green against a local nginx; goes live on deploy.*
 - Move the four `add_header ... always` lines into `nginx/snippets/security-headers.conf`; `include` it at server level **and** inside the `account|log|checkin|checkin-invite` location (and any future location with its own `add_header`).
 - Add `Strict-Transport-Security "max-age=31536000" always` in the same snippet (short `max-age` first if nervous; no `preload` yet). Partially closes L2.
 - Remove the per-page `<meta name="robots">` inconsistency: rely on the header everywhere.
 - **Test:** P2-B5 probe flips from expected-fail to pass. Run it against live after deploy.
 
-### P2-A1 · Real client IP through Cloudflare — S — closes H1 (and unblocks M6)
+### ✅ P2-A1 · Real client IP through Cloudflare — S — closes H1 (and unblocks M6)
+*Done, with a finding the review missed: the origin runs on Docker Desktop (macOS), which NATs every inbound connection, so nginx sees `192.168.65.1` for **all** visitors (confirmed in the live access log), not Cloudflare edge IPs. The whole internet shared one rate-limit bucket. nginx now trusts `CF-Connecting-IP` from Cloudflare ranges and from that gateway; the app trusts `X-Real-IP` only with `TRUST_PROXY_HEADERS=true`.*
 - nginx: `set_real_ip_from` for each published Cloudflare IPv4/IPv6 range (put in `nginx/snippets/cloudflare-realip.conf`, with a comment + `scripts/update_cf_ranges.sh` to refresh from `https://www.cloudflare.com/ips-v4` / `-v6`), `real_ip_header CF-Connecting-IP;`. Keep `proxy_set_header X-Real-IP $remote_addr;` (which is now the visitor).
 - App: new setting `TRUST_PROXY_HEADERS` (default `false`). `backend/app/core/rate_limit.py` reads `X-Real-IP` only when it is `true`; otherwise uses `request.client.host`. Set `true` in `docker-compose.yml` only.
 - **Tests:** unit test for the key function under both settings; spoofed `X-Real-IP` ignored when `false`.
 - **Live check:** two requests from different networks land in separate buckets (log the resolved key at debug level once, then remove).
+
+### P2-A1b · Only Cloudflare may reach the origin — S — closes the residual H1 spoofing gap
+- Because nginx can't tell Cloudflare's traffic from a direct connection (Docker Desktop NAT), someone who learns the origin IP can bypass Cloudflare and spoof `CF-Connecting-IP`.
+- Fix: enable **Authenticated Origin Pulls** (zone-level) in the Cloudflare dashboard, then in nginx `ssl_client_certificate` = Cloudflare's origin-pull CA + `ssl_verify_client on`. Order matters: dashboard first, nginx second, or the site goes down.
+- Alternative: run `cloudflared` (Cloudflare Tunnel) and stop publishing ports 80/443 at all.
+- **Test:** direct `curl --resolve solusvires.com:443:<origin-ip>` is refused; the site still loads through Cloudflare.
 
 ### P2-A3 · Wrong PIN can never fork the vault — S — closes H3
 - Migration `0003_evidence_key_check`: add `users.evidence_key_check_ciphertext` and `users.evidence_key_check_iv` (nullable `Text`).

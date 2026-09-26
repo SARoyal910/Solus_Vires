@@ -24,6 +24,7 @@ class Settings:
     checkin_alert_check_seconds: int
     checkin_alert_repeat_hours: int
     checkin_token_secret: str
+    trust_proxy_headers: bool
 
 
 @lru_cache
@@ -50,4 +51,5 @@ def get_settings() -> Settings:
         checkin_alert_check_seconds=int(os.getenv("CHECKIN_ALERT_CHECK_SECONDS", "300")),
         checkin_alert_repeat_hours=int(os.getenv("CHECKIN_ALERT_REPEAT_HOURS", "6")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
+        trust_proxy_headers=os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true",
     )
