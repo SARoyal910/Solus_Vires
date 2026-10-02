@@ -51,7 +51,7 @@ The operator is inside A5 and A6's blast radius on purpose: the design goal is t
 | Neutral labels: the vault is "Notes", the nav says "Notes & Check-ins" | `html/log.html` `<title>`, nav in every page | Review | ◐ Neutral titles on every private page **land with P2-E2**; the low-key theme **lands with P2-E4** |
 | No email or phone at sign-up, so no reset message lands in a shared inbox | `backend/app/schemas/auth.py` (username + password only) | `backend/tests/test_auth.py` | ✅ |
 | Every session can be ended at once from any device | `POST /api/auth/logout-all` (`backend/app/services/auth.py`) | `test_logout_all_ends_every_session` | ✅ |
-| The installable app and offline copy are opt-in, named neutrally, and removable | `html/manifest.json`, `html/sw.js`, `html/offline.js` | `tests/browser/offline.mjs` | ⏳ lands with P2-E9 (this lane, today) |
+| The installable app and offline copy are opt-in, plainly named, and removable; no install prompt; private pages and `/api/` are never cached | `html/manifest.json`, `html/sw.js`, `html/offline.js`, the install-banner block at the end of `html/shared.js` | `tests/browser/offline.mjs` (21 checks, also in CI) | ✅ (P2-E9) |
 
 **What remains (✗):** anything installed on the device (stalkerware, a keylogger, screen recording) sees the PIN as it's typed; no web page can defend against that. Browser history, a saved password, and an open session are visible to whoever holds the unlocked device. The Recovery page keeps exercise progress in `localStorage` (disclosed on `/privacy.html`). The site says this plainly on `log.html` and `safety.html`; that honesty is the mitigation.
 
