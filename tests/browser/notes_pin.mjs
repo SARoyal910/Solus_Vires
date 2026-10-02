@@ -1,10 +1,11 @@
 // Drives the Notes PIN flows in headless Chrome against scripts/preview.sh.
 //   (cd tests/browser && npm install puppeteer-core@23) && node tests/browser/notes_pin.mjs
+// SV_BASE_URL points it at another local preview (default http://127.0.0.1:8099).
 // Uses throwaway accounts on the local preview only; never point it at production.
 import puppeteer from "puppeteer-core";
 import crypto from "node:crypto";
 
-const BASE = "http://127.0.0.1:8099";
+const BASE = process.env.SV_BASE_URL || "http://127.0.0.1:8099";
 const rnd = () => crypto.randomBytes(4).toString("hex");
 const PASSWORD = "pw-" + crypto.randomBytes(8).toString("hex");
 const PIN = "pin-" + crypto.randomBytes(8).toString("hex");
