@@ -28,7 +28,7 @@
       <div class="section-head">
         <p class="eyebrow">Privacy statement</p>
         <h1>What we keep, and what we can't see</h1>
-        <p>Written to be read, not skimmed past. Last updated September 26, 2026. Solus Vires is run by Steven Royal through Omnia Royal LLC.</p>
+        <p>Written to be read, not skimmed past. Last updated October 2, 2026. Solus Vires is run by Steven Royal through Omnia Royal LLC.</p>
       </div>
       <div class="safe-note">
         <strong>The short version.</strong> Reading this site needs no account and leaves nothing with us. If you make an account, your notes are encrypted in your browser with a PIN we never receive, so we can't read them and can't give them to anyone. We use no ads, analytics, or trackers, and we don't log which pages people visit.
@@ -146,17 +146,46 @@
       </div>
     </section>
 
-    <section class="band">
+    <section class="band" id="terms">
+      <div class="section-head">
+        <p class="eyebrow">Terms, in plain words</p>
+        <h2>What you can and can't rely on this site for</h2>
+        <p>By using the site you're agreeing to these. They're short on purpose.</p>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h2>It isn't an emergency service</h2>
+          <p>Nobody watches this site around the clock, and it can't send help. Check-in alerts are sent automatically by our server, so they depend on the server, email, and push notifications all working, and on your contacts seeing the alert and acting on it. An alert can be late or never arrive. If you're in danger, call 911.</p>
+        </article>
+        <article class="card">
+          <h2>It isn't legal or professional advice</h2>
+          <p>What's here is general information, not advice about your situation, and not a substitute for an advocate, lawyer, or counselor. Laws are different in every state. Every phone number and organization was checked against its own website before it was added, but they can change; the organization's own site is the final word.</p>
+        </article>
+        <article class="card">
+          <h2>It's still a prototype</h2>
+          <p>Accounts are invite-only. The site hasn't yet been reviewed by legal counsel or a domestic violence advocacy organization, and its security hasn't been independently audited. Features may change, and we may have to pause accounts or check-ins. There's no way to export your notes yet, so keep a copy of anything you can't afford to lose somewhere safe.</p>
+        </article>
+        <article class="card">
+          <h2>Use it for yourself, not on someone else</h2>
+          <p>Notes and check-ins are for your own safety. Don't use them to watch, track, or contact someone who hasn't agreed. Trusted contacts choose whether to accept and can stop at any time. Accounts used to harass someone may be closed. The site is free and offered as it is, without guarantees.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band alt">
       <div class="section-head">
         <p class="eyebrow">Not yet reviewed</p>
         <h2>An honest caveat</h2>
-        <p>This statement describes exactly how the site works today, but it hasn't yet been reviewed by a lawyer. It will be before the site opens to the public, and this page will say when it changes.</p>
+        <p>This statement and these terms describe exactly how the site works today, but they haven't yet been reviewed by a lawyer. They will be before the site opens to the public, and this page will say when they change.</p>
       </div>
     </section>
 
     <!-- Kept true by: nginx `access_log off` (nginx/conf.d/default.conf), uvicorn --no-access-log (backend/Dockerfile),
          in-memory-only rate limiter and login throttle (backend/app/core/), no-content logging (backend/app/services/),
-         30-dump backup rotation (scripts/backup.sh), 14-day SESSION_TTL_DAYS default. Update this page if any of those change. -->
+         30-dump backup rotation (scripts/backup.sh), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
+         Terms (added 2026-10-02, P2-C2): alerts come only from the background loop in backend/app/services/checkin.py via
+         Web Push and Brevo, both best-effort (backend/app/core/notifications.py); sign-ups invite-only (BETA_SIGNUPS_ENABLED);
+         no notes export until P2-E3. -->
   </main>
 
   <footer>
