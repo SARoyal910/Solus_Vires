@@ -103,10 +103,42 @@ heard of. Rolling back past P2-A15 after a newer migration has run means
 downgrading first, with the *new* image still in place:
 `docker compose run --rm api alembic downgrade <revision the old code knows>`.
 
-### Next deploy: what changes on the droplet (P2-A15)
+### Next deploy: what changes on the droplet (Phase 2 Sprints 2-5)
 
-Do this once, the first time `main` includes P2-A15. Everything else about
-the site is unchanged.
+Do this once, the first time `main` includes P2-A15 and the Lane A hardening
+work. It changes how deploys work, adds required secrets, and runs new
+migrations.
+
+**0. Before anything else, fix `.env` on the droplet.** In production the
+api now **refuses to start** if any of these three is empty, a placeholder
+(`replace-with-...`), or a known default (`solusvires`, `postgres`,
+`password`, `test-only`, `changeme`, empty). While it refuses, the API is
+down: no logins, no notes, and **no check-in alerts** go out until it's
+fixed. `scripts/deploy.sh` checks the same thing and stops before building.
+- `RECOVERY_CODE_PEPPER` (new, required; compose won't even start without
+  it). Generate once:
+  `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+  **Never change it after it's set**: every recovery code issued under the
+  old value would stop working, with no way to recover them. Keep a copy
+  with the backup key (password manager).
+- `CHECKIN_TOKEN_SECRET` must be a real random value (same command). If it
+  is already set on the droplet, **keep it**: changing it breaks every
+  invite and "manage alerts" link already emailed.
+- `POSTGRES_PASSWORD` must not be a default. If it is, changing `.env`
+  alone is not enough, because Postgres keeps the password it was created
+  with: first
+  `docker compose exec db psql -U solusvires -d solusvires -c "ALTER USER solusvires PASSWORD 'new-value';"`,
+  then put the same value in `.env`.
+- Optional, all off when empty: `HEALTHCHECK_PING_URL` (see "Monitoring"),
+  `OPERATOR_ALERT_EMAIL` (one email when one address is refused by the rate
+  limits more than `ABUSE_ALERT_THRESHOLD`, default 50, times in an hour;
+  the email never contains the IP, at most 5 a day),
+  `CONTACT_INBOX_EMAIL` and `CONTACT_RESPONSE_DAYS` (default 7; the contact
+  form sends to that inbox through Brevo and stores nothing; without an
+  inbox, or without `BREVO_API_KEY`, the form says plainly that it's off).
+  `CHECKIN_ALERT_LOOP_ENABLED` defaults to on in compose; leave it.
+
+Then:
 
 1. **Before pulling**, check for a local override:
    `ls docker-compose.override.yml`. If it exists and mounts `backend/app`,
@@ -114,28 +146,44 @@ the site is unchanged.
    `deploy.sh` refuses to run while a source mount is configured.
 2. `git pull origin main`.
 3. Take a backup: `BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/backup.sh ~/solusvires-backups`.
-4. `scripts/migrate.sh`. It prints `before:` and `after:`; `after` must end
-   in `(head)`. If this deploy brings no new migration, before and after
-   are both `0004 (head)` (or whatever production is on) and nothing changes.
+   This deploy has migrations, so this is not optional.
+4. `scripts/migrate.sh`. It prints `before:` and `after:`. Expect
+   `before: 0004 (head)` and an `after` ending in `(head)` at the newest
+   revision: **0005** (recovery codes stored as a peppered HMAC), **0006**
+   (check-in alert history and push health), and **0007** (encrypted
+   evidence attachments) if Lane B's work is in this deploy. All three only
+   add tables and columns.
 5. `docker compose up -d --wait`. Expect compose to **recreate all three
-   containers once**: the api (new command, no bind mount, healthcheck), the
-   database (it gained a healthcheck; the data lives in the `db_data`
-   volume, which is kept, so this is a few seconds' restart), and nginx
-   only if its config changed. `docker compose ps` should then show
-   `api ... (healthy)` and `db ... (healthy)`.
+   containers once**: the api (new command, no bind mount, healthcheck, new
+   settings), the database (it gained a healthcheck; the data lives in the
+   `db_data` volume, which is kept, so this is a few seconds' restart), and
+   nginx only if its config changed. `docker compose ps` should then show
+   `api ... (healthy)` and `db ... (healthy)`. If the api keeps restarting,
+   `docker compose logs --tail 20 api` shows a `refusing_to_start:` line
+   naming the setting (never its value): back to step 0.
 6. Check the source mount is gone:
    `docker inspect --format '{{json .Mounts}}' solusvires_api` prints `[]`.
 7. `scripts/smoke.sh https://solusvires.com` prints `SMOKE OK`.
-8. From the following deploy on, use `scripts/deploy.sh` (step 4 above).
+8. Set up monitoring (below) if it isn't yet, and run its forced test.
+9. From the following deploy on, use `scripts/deploy.sh` (step 4 above).
 
-If step 5 fails with "unhealthy", run step 4 again and look at
-`docker compose logs --tail 50 api`. To undo everything:
-`git checkout 83be254 -- backend/Dockerfile docker-compose.yml && docker compose up -d --build`
-(safe only while no migration newer than the ones in `83be254` has been applied;
-see "Rolling back").
+**Rolling back after this deploy:** migrations 0005 and 0006 can stay
+applied for older code, with one exception: recovery codes created after
+this deploy exist only as an HMAC, and code from before 0005 can't check
+them (recovery would fail for those accounts). Prefer fixing forward. If
+you must go back past it, run
+`docker compose run --rm api alembic downgrade 0004` with the new image
+first; that deletes the HMAC-only codes (those people keep their password
+but need new codes).
 
-**On the Mac**, the owner's local stack loses its live-reload source mount
-the next time it is brought up. To keep editing without rebuilding:
+If step 5 fails with "unhealthy" and no `refusing_to_start` line, run step 4
+again and look at `docker compose logs --tail 50 api`. To undo the deploy,
+see "Rolling back" above: don't mix the old `docker-compose.yml` with the new
+code (the new api needs `RECOVERY_CODE_PEPPER`, which the old file doesn't pass).
+
+**On the Mac**, the owner's local `.env` also needs `RECOVERY_CODE_PEPPER`
+(any value locally) or `docker compose` refuses to start, and the local stack
+loses its live-reload source mount the next time it is brought up. To keep editing without rebuilding:
 `cp docker-compose.override.example.yml docker-compose.override.yml`
 (gitignored). Run `scripts/migrate.sh` after pulling a new migration there
 too.
@@ -194,8 +242,9 @@ checked 2026-10-02).
 ### 2. Are check-in alerts running? Healthchecks.io heartbeat
 
 The alert loop runs inside the api every `CHECKIN_ALERT_CHECK_SECONDS`
-(300 s). After each pass it requests `HEALTHCHECK_PING_URL` (empty means
-no ping). If the pings stop, the loop has stopped,
+(300 s). After each pass that held the alert lock and finished without an
+error, it requests `HEALTHCHECK_PING_URL` (empty means no ping; a failed
+ping is logged and never affects alerts). If the pings stop, the loop has stopped,
 even if `/api/health` still answers, and Healthchecks.io emails the owner.
 That is the case UptimeRobot can't see. Free "Hobbyist" plan: 20 checks
 (healthchecks.io/pricing, checked 2026-10-02).
