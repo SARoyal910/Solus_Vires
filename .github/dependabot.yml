@@ -1,0 +1,46 @@
+# Dependency and base-image updates on a schedule (P2-F4). Dependabot opens a
+# pull request; CI runs on it; nothing merges or deploys by itself. Before
+# merging, read the changelog, then deploy as usual (docs/RUNBOOK.md).
+version: 2
+updates:
+  # Python packages, pinned in backend/requirements*.txt.
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for routine minor/patch bumps; majors arrive one at a time.
+      python-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # The api's base image (backend/Dockerfile, pinned by digest).
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly
+    ignore:
+      # Stay on Python 3.12 (.python-version); moving is a deliberate change.
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
+
+  # nginx and Postgres images in docker-compose.yml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # A new Postgres major needs a dump-and-restore of the data volume,
+      # never just an image bump.
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
+
+  # Actions used by .github/workflows/ci.yml.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
