@@ -22,9 +22,9 @@ A glossary of the security/architecture concepts this build leans on, for anyone
 - **PBKDF2 (Password-Based Key Derivation Function 2)** — turns a human-memorable PIN into a cryptographic key, deliberately slowed down (600,000 hash iterations) so that guessing PINs by brute force is computationally expensive even if an attacker gets the salt.
 - **AES-256-GCM** — the actual encryption cipher used on the derived key. GCM is an *authenticated* mode: it appends a tamper-evident tag to the ciphertext, so decrypting with the wrong key doesn't produce garbled-but-plausible output, it fails cleanly and detectably ("Incorrect PIN" rather than corrupted text).
 - **Salt** — a random per-user value mixed into the PBKDF2 derivation so two users with the same PIN don't produce the same key, and so precomputed ("rainbow table") attacks don't work. Not secret — safe to store server-side in the clear, unlike the PIN itself.
-- **Argon2id password hashing** — the current OWASP-recommended algorithm for turning a login password into a stored hash that resists both GPU-cracking and side-channel attacks. Used for account passwords and recovery codes (never for the Notes PIN, which uses PBKDF2 for browser-native key derivation instead of hash comparison).
+- **Argon2id password hashing** — the current OWASP-recommended algorithm for turning a login password into a stored hash that resists both GPU-cracking and side-channel attacks. Used for account passwords (never for the Notes PIN, which uses PBKDF2 for browser-native key derivation instead of hash comparison). Recovery codes originally used it too; since Phase 2 (P2-A13) they use a peppered HMAC-SHA256 instead, see below.
 - **Opaque session tokens** — a random, meaningless-on-its-own token handed to the browser in a cookie; the server maps it (as a hash) to a session row that can be deleted at any time for instant, real logout. Contrasted with **JWT** (a self-contained, signed token that stays valid until it expires, harder to revoke early) — rejected here specifically because instant revocation is a safety feature for this app, not a nicety.
-- **`HttpOnly` / `SameSite=Strict` cookies** — browser-enforced protections: `HttpOnly` keeps the session token invisible to page JavaScript (blocks a class of token-theft via XSS), `SameSite=Strict` stops the cookie from being sent on cross-site requests (blocks a class of CSRF).
+- **`HttpOnly` / `SameSite=Lax` cookies** — browser-enforced protections: `HttpOnly` keeps the session token invisible to page JavaScript (blocks a class of token-theft via XSS), `SameSite=Lax` stops the cookie from being sent on cross-site subrequests and cross-site `POST`s (blocks a class of CSRF) while still sending it when someone follows a link to the site, so arriving from an email or text shows them logged in. It was `Strict` until Phase 2 (P2-A17); `Lax` is safe here because every state-changing route is a JSON `POST`/`PUT`/`DELETE` with no CORS, which a cross-site page can't send with the cookie.
 - **Defense against DV-specific threats, not just generic ones** — several choices exist because the realistic attacker for this app is often someone with physical or account access to the survivor's own device, not an anonymous internet attacker: no email/SMS account recovery (a shared inbox/phone plan is a leak vector), a separate unrecoverable Notes PIN (so password reset can't double as an evidence-access bypass), generic page/nav labeling (so a shoulder-surf reveals nothing), and auto-lock on idle/tab-hide.
 - **Structural privacy, not just access-control privacy** — there is no table anywhere that could hold cross-user or public data about a named "abuser." The one-per-user unique constraint on `case_profiles.user_id` makes the "never public" property true by schema design, not merely by a permission check that could have a bug.
 
@@ -44,9 +44,9 @@ No new frontend build tooling was introduced — the site remains plain HTML/CSS
 
 **Login by username, not email/phone.** Avoids the classic DV-tech failure mode where a password-reset link or verification code passes through an inbox or phone plan the abusive person can also see.
 
-**Sessions are opaque, DB-backed tokens, not JWT.** A random token (`secrets.token_urlsafe(32)`) is set in an `httponly`, `SameSite=Strict` cookie; only its SHA-256 hash is stored server-side in the `sessions` table. This buys instant, real revocation — `/api/auth/logout-all` deletes every session row for a user immediately, which matters if a survivor says "the person who hurts me has my phone." A JWT can't be un-issued without a blocklist; this design needed one fewer moving part and one fewer secret (no signing key to generate, store, or rotate).
+**Sessions are opaque, DB-backed tokens, not JWT.** A random token (`secrets.token_urlsafe(32)`) is set in an `httponly`, `SameSite=Lax` cookie (`Strict` before P2-A17); only its SHA-256 hash is stored server-side in the `sessions` table. This buys instant, real revocation — `/api/auth/logout-all` deletes every session row for a user immediately, which matters if a survivor says "the person who hurts me has my phone." A JWT can't be un-issued without a blocklist; this design needed one fewer moving part and one fewer secret (no signing key to generate, store, or rotate).
 
-**Recovery via one-time codes, not email/SMS.** Ten single-use recovery codes are generated at registration, hashed the same way as passwords, and shown to the user exactly once. If both password and all codes are lost, the account is unrecoverable by design — stated plainly in the UI, not hidden.
+**Recovery via one-time codes, not email/SMS.** Ten single-use recovery codes are generated at registration and shown to the user exactly once. Since Phase 2 (P2-A13, migration `0005`) each is stored as a peppered HMAC-SHA256 (keyed by the `RECOVERY_CODE_PEPPER` server setting, over the user id and the code) in `recovery_codes.code_sha256`, and found by one indexed lookup: the codes are 80 random bits, so a slow memory-hard hash added nothing but a way to burn server CPU (engineering review M6). Codes issued before the change keep their Argon2 hash in `code_hash` and are still accepted until used. If both password and all codes are lost, the account is unrecoverable by design — stated plainly in the UI, not hidden.
 
 **Evidence encryption is zero-knowledge (client-side), not server-side-at-rest.** This extends an existing precedent already in the codebase: `backend/app/services/contact.py`'s `ContactService` deliberately never logs survivor-provided message content. Server-side-at-rest encryption still leaves the operator (or anyone who breaches, subpoenas, or compels them) able to produce plaintext. With zero-knowledge encryption, the database only ever holds ciphertext + IV; the operator can truthfully say they never had the ability to read it.
 
@@ -66,7 +66,8 @@ Five new tables, added via Alembic migration `backend/migrations/versions/0001_i
 users            id, username (unique), password_hash, evidence_salt,
                  failed_login_count, locked_until, created_at, last_login_at
 
-recovery_codes   id, user_id (fk), code_hash, used_at, created_at
+recovery_codes   id, user_id (fk), code_hash (legacy Argon2, nullable),
+                 code_sha256 (peppered HMAC, Phase 2), used_at, created_at
 
 sessions         id (sha256 of the cookie token), user_id (fk),
                  created_at, expires_at, last_seen_at
@@ -184,7 +185,7 @@ One inherent limitation this fix cannot close, already true of zero-knowledge de
 ## Explicitly deferred — not built in this pass
 
 - Trusted-contact check-in/alerts (the next planned phase).
-- File/photo evidence upload — text-only for now; photo EXIF metadata can itself leak GPS location, which is a safety reason to defer, not just a scope cut.
+- ~~File/photo evidence upload~~ Done in Phase 2 (P2-E7), with the EXIF/GPS risk handled in the browser; see "Phase 2 additions" below.
 - A full disguised/skinned UI beyond generic page/nav labeling.
 - MFA, OAuth, passkeys.
 - Admin or partner-facing tooling; there is a single user role, no RBAC.
@@ -192,5 +193,29 @@ One inherent limitation this fix cannot close, already true of zero-knowledge de
 - A public abuser registry — deliberately rejected, not deferred (see "Why this exists" above).
 - ~~Rate limiting beyond the basic login lockout~~ Done in Phase 2: per-IP rate limits and a per-(IP, username) login slowdown replaced the account lockout. Still no CAPTCHA (deliberately, decision D7) or abuse alerting (P2-F3).
 - Backup/restore testing; a defined data retention/deletion policy beyond user-initiated delete.
-- A Notes PIN change/rotation flow — the data model supports it (the salt lives on `users`, not per-entry), but the re-encrypt-all-entries UI is a fast-follow, not MVP-blocking.
+- A Notes PIN change/rotation flow — the data model supports it (the salt lives on `users`, not per-entry), but the re-encrypt-everything UI is still not built. Since Phase 2 a PIN under 12 characters gets a notice on unlock that says so plainly. Note the salt and key-check are write-once on the server, so a change flow also needs a new API route that swaps salt, key-check, and every ciphertext in one transaction.
 - **Legal review.** Per the project's own architecture doc and README, this remains a hard prerequisite before any real-world use with actual survivors. This build is a technical milestone, not a launch-ready product.
+
+## Phase 2 additions (lane B, 2026-10-02)
+
+All of this runs in the browser on data already decrypted with the Notes PIN. The server still receives only ciphertext.
+
+**PIN flow (P2-A10).** Setup shows a live strength hint (`EvidenceCrypto.pinStrength`: too short / weak shapes like digits-only, runs, and common words / OK / strong for 20+ characters or three-plus words) and says the PIN is the only thing protecting the notes if the database is stolen. While the vault is empty, the no-recovery warning shows again and the first save (profile, plan, or entry) waits for a tick confirming the PIN is written down. Setup and unlock show an "Unlocking…" state with the button disabled while PBKDF2 runs. Locking now wipes decrypted content from the page, not just hides it.
+
+**Export and search (P2-E3).** "Print or save a copy" builds a copy from memory (`html/notes-export.js`): oldest entry first, each with the date its writer gave and when it was first saved, plus the private profile, the safety plan, and photos with their capture date. "Print / Save as PDF" uses the print stylesheet in `shared.css` (only the copy prints, page numbers in the margin where the browser supports them). "Download as text file" saves plain UTF-8 text (photos listed, not embedded). Preparing the copy may download photos that haven't been opened yet, still encrypted; after that, building, printing, and downloading make no network requests (`tests/web/export.test.mjs`, `tests/browser/notes_vault.mjs`). The copy is not encrypted, and the page says so above the buttons. There is no first-party PDF generator: a hand-written PDF writer would lose any character outside Latin-1, and the browser's print-to-PDF doesn't. Search filters entries by text, date, and photo name, in the browser.
+
+**Safety plan (P2-E8).** The Safety Planning page as a form in the vault (section layout in `NotesExport.PLAN`), saved as one encrypted JSON blob `{version, fields, checklist}` in the new `safety_plans` table (`GET/PUT/DELETE /api/evidence/safety-plan`), and included in exports. `safety.html` links to it.
+
+**Photos and screenshots (P2-E7).** `html/image-clean.js` redraws each image on a canvas and encodes a new JPEG (PNG stays PNG when it fits), which keeps only the pixels, then scans the result and refuses it if any EXIF, XMP, comment, or PNG text/eXIf/tIME block survived. Output is capped at 5 MB (quality, then size, steps down to fit); inputs over 40 MB are refused. The EXIF capture date is read before it is dropped and kept only in the encrypted description, because it can matter as evidence; GPS is never read. The image and its description (`{name, type, width, height, taken, size}`) are encrypted separately (`EvidenceCrypto.encryptBytes` / `encryptJSON`) and stored in `evidence_attachments` (`bytea`, tied to one of the owner's entries; deleting the entry or the account deletes them). API: `GET /api/evidence/attachments[?entry_id=]` (descriptions only), `POST /api/evidence/attachments` (base64 JSON; nginx allows 8 MB on that route only), `GET/DELETE /api/evidence/attachments/{id}`. Other accounts get 404. Limit: 200 photos per account. iPhone HEIC files decode only where the browser can (Safari usually converts on upload); elsewhere the page asks for a screenshot or JPEG. What is visible in a photo stays, and the page says so.
+
+**Tables (migration `0007`, after Lane A's `0006`):**
+
+```
+safety_plans          id, user_id (fk, unique), ciphertext, iv, created_at, updated_at
+evidence_attachments  id, user_id (fk), entry_id (fk evidence_entries), ciphertext (bytea), iv,
+                      meta_ciphertext, meta_iv, size_bytes, created_at
+```
+
+`size_bytes` is the one new plaintext fact: the server already sees each upload's size, and the count/size is needed for the per-account cap.
+
+**Other page behaviour.** On Android, choosing a photo opens the gallery and hides the tab; while a file picker is open the page leaves locking to the 4-minute idle timer instead of locking on hide.

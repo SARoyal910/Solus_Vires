@@ -4,9 +4,12 @@
 const PBKDF2_ITERATIONS = 600000;
 
 function bufToBase64(buf) {
-  const bytes = new Uint8Array(buf);
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  // In slices: photos are megabytes, and one character at a time is slow.
   let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
   return btoa(binary);
 }
 
@@ -61,6 +64,18 @@ async function decryptJSON(key, ciphertextBase64, ivBase64) {
   return JSON.parse(dec.decode(plaintextBuf));
 }
 
+// Raw bytes (photos, P2-E7): same key and cipher as the notes.
+async function encryptBytes(key, bytes) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertextBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes);
+  return { ciphertext: bufToBase64(ciphertextBuf), iv: bufToBase64(iv) };
+}
+
+async function decryptBytes(key, ciphertextBase64, ivBase64) {
+  const iv = new Uint8Array(base64ToBuf(ivBase64));
+  return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, base64ToBuf(ciphertextBase64)));
+}
+
 // A fixed value encrypted under the PIN at setup. Decrypting it is how the
 // browser proves a PIN is right before anything is written with it; AES-GCM
 // refuses to decrypt under any other key.
@@ -78,11 +93,48 @@ async function keyMatchesCheck(key, keyCheck) {
   }
 }
 
+// A rough, honest strength hint for the notes PIN (P2-A10). Not a promise:
+// it only catches the common weak shapes (too short, one repeated character,
+// digits only, keyboard runs, a few very common words) and rewards length and
+// several unrelated words, which is what actually slows down guessing.
+const PIN_MIN_LENGTH = 12;
+const COMMON_PIN_PARTS = ["password", "passw0rd", "qwerty", "asdfgh", "letmein", "iloveyou", "123456", "abcdef", "abc123", "welcome", "monkey", "dragon"];
+
+function pinStrength(pin) {
+  const value = String(pin || "");
+  const length = [...value].length;
+  if (length < PIN_MIN_LENGTH) {
+    const more = PIN_MIN_LENGTH - length;
+    return { level: "short", message: `Too short: ${more} more character${more === 1 ? "" : "s"} needed.` };
+  }
+  const lower = value.toLowerCase();
+  const distinct = new Set(lower).size;
+  const words = lower.split(/[^\p{L}]+/u).filter((w) => w.length >= 3);
+  const isRun = (s) => {
+    for (let i = 2; i < s.length; i++) {
+      const a = s.charCodeAt(i - 2), b = s.charCodeAt(i - 1), c = s.charCodeAt(i);
+      if (!(b - a === c - b && Math.abs(c - b) === 1)) return false;
+    }
+    return true;
+  };
+  if (distinct <= 3 || /^\d+$/.test(value) || isRun(lower) || COMMON_PIN_PARTS.some((p) => lower.includes(p))) {
+    return { level: "weak", message: "Easy to guess. Try a few unrelated words, like kettle-harbor-violet." };
+  }
+  if (length >= 20 || (words.length >= 3 && length >= 16)) {
+    return { level: "strong", message: "Strong. Write it down somewhere safe." };
+  }
+  return { level: "ok", message: "OK. Longer is stronger: a few unrelated words work well." };
+}
+
 window.EvidenceCrypto = {
   generateSaltBase64,
   deriveKey,
   encryptJSON,
   decryptJSON,
+  encryptBytes,
+  decryptBytes,
   makeKeyCheck,
   keyMatchesCheck,
+  pinStrength,
+  PIN_MIN_LENGTH,
 };

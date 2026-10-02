@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .api import auth, checkin, contact, evidence, health
+from .api import vault as vault_api
 from .core.config import get_settings, production_config_problems
 from .core.middleware import add_security_headers
 from .services.checkin import CheckinService
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
     app.include_router(contact.router)
     app.include_router(auth.router)
     app.include_router(evidence.router)
+    app.include_router(vault_api.router)
     app.include_router(checkin.router)
 
     if settings.site_dir.exists():
