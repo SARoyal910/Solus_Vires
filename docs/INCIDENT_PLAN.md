@@ -38,13 +38,14 @@
    - `POSTGRES_PASSWORD` (also `ALTER USER solusvires PASSWORD '...'` in psql first, or the api can't connect).
    - `CHECKIN_TOKEN_SECRET`. This invalidates every invite and "manage alerts" link already emailed. Contacts who already accepted keep getting alerts; the next alert email carries a working link.
    - `BREVO_API_KEY` (create a new key in Brevo, delete the old one).
+   - **Not** `RECOVERY_CODE_PEPPER`, unless the attacker could also read the droplet's `.env` (Scenario 2). The pepper is what makes the recovery-code hashes in a stolen dump useless on their own. Changing it makes every recovery code stop working, and there is no way yet for someone to make new ones.
 3. If the **backup key** leaked, every backup is readable: generate a new `age` key (`docs/RUNBOOK.md` "Backups"), switch the droplet's recipient, take a fresh backup, delete old backups everywhere you can.
 4. If the attacker had a shell on the droplet, treat it as Scenario 2 as well.
 
 **Tell people.** Notice at the top of `/index.html`, `/about.html` and `/account.html`:
 > *[Date]: Someone got a copy of this site's database. Your notes were stored encrypted with your PIN, which we never had, so they can't be read without it. They could see usernames, trusted contacts' email addresses, and check-in times. Everyone has been signed out. If your notes PIN is short or easy to guess, assume someone could eventually read those notes. If you're worried about your safety, call the National Domestic Violence Hotline: 1-800-799-7233, or text START to 88788.*
 
-Keep it up for at least 90 days: people may come back rarely. Do **not** email trusted contacts about the breach unless counsel advises it: an email out of the blue tells a contact's household that someone they know uses this site.
+Keep it up for at least 90 days: people may come back rarely. If the operator's own mailbox was also breached, contact-form messages were exposed too: say so in the notice. Do **not** email trusted contacts about the breach unless counsel advises it: an email out of the blue tells a contact's household that someone they know uses this site.
 
 ## Scenario 2 · Droplet or account compromise (S1)
 
@@ -53,7 +54,7 @@ Keep it up for at least 90 days: people may come back rarely. Do **not** email t
 **Contain**
 1. In Cloudflare, turn on **Under Attack** mode or pause the site if pages are altered (a down site is better than a malicious one: crisis numbers are also at thehotline.org).
 2. Change passwords and 2FA on DigitalOcean, Cloudflare, GitHub, Brevo, and the email account that resets them. Revoke unknown SSH keys and API tokens.
-3. **Build a new droplet** from a clean image rather than cleaning the old one. Fresh checkout of `main`, new `.env` with all secrets rotated (Scenario 1 step 2, plus new VAPID keys: `python backend/scripts/generate_vapid_keys.py`; contacts have to turn notifications on again from their invite page). Restore the latest backup you trust (`docs/RUNBOOK.md` "Real restore"), from *before* the compromise.
+3. **Build a new droplet** from a clean image rather than cleaning the old one. Fresh checkout of `main`, new `.env` with all secrets rotated (Scenario 1 step 2, plus `RECOVERY_CODE_PEPPER`, since the attacker may have read it: every existing recovery code stops working, so the notice must say so; plus new VAPID keys: `python backend/scripts/generate_vapid_keys.py`; contacts have to turn notifications on again from their invite page). Restore the latest backup you trust (`docs/RUNBOOK.md` "Real restore"), from *before* the compromise.
 4. New Cloudflare Origin certificate; revoke the old one.
 5. Point Cloudflare at the new droplet, run `scripts/smoke.sh https://solusvires.com`, then destroy the old droplet once its snapshot is kept.
 
@@ -82,9 +83,13 @@ Keep it up for at least 90 days: people may come back rarely. Do **not** email t
 **Tell people.** If the outage was longer than the shortest grace period anyone could have set (zero hours is allowed, so: any outage longer than one alert pass), put a notice on `/checkin.html`, `/account.html` and `/if-you-get-an-alert.html`:
 > *Check-in alerts weren't being sent between [time] and [time] [timezone]. They're working again. If you missed a check-in during that time, your contacts may not have been told. Check in now, and if you rely on check-ins, let your contacts know.*
 
+## Scenario 4b · Abuse alert email (S3)
+
+*Signs:* an email "repeated rate-limit hits from one address" (`OPERATOR_ALERT_EMAIL`). The limits are already refusing that address; the email carries counts and paths, never the address (none is kept). If it repeats daily or targets `/api/auth/login`, add a Cloudflare rate-limiting or WAF rule for that path. No notice to users.
+
 ## Scenario 5 · Site or API down (S2/S3)
 
-*Signs:* UptimeRobot alert. Pages down: check Cloudflare status, then the droplet (`docker compose ps`), then disk (`df -h`; Docker logs are capped, backups keep 30). API down but pages up: S2, because Notes and check-ins are unavailable; Scenario 4 step 1. Notice only if it lasts more than a few hours.
+*Signs:* UptimeRobot alert. Pages down: check Cloudflare status, then the droplet (`docker compose ps`), then disk (`df -h`; Docker logs are capped, backups keep 30). API down but pages up: S2, because Notes and check-ins are unavailable; Scenario 4 step 1. If the api keeps restarting and `docker compose logs api` shows `refusing_to_start:`, a required secret in `.env` is missing or a default (`docs/RUNBOOK.md`, "Next deploy", step 0); check-in alerts are stopped until it's fixed, so treat it as Scenario 4. Notice only if it lasts more than a few hours.
 
 ---
 
