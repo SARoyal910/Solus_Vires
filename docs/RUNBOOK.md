@@ -112,8 +112,7 @@ the site is unchanged.
    `ls docker-compose.override.yml`. If it exists and mounts `backend/app`,
    move it out of the checkout (`mv docker-compose.override.yml ~/`).
    `deploy.sh` refuses to run while a source mount is configured.
-2. `git pull origin main`, then `chmod +x scripts/*.sh` only if `git` says
-   the scripts aren't executable (they're committed as executable).
+2. `git pull origin main`.
 3. Take a backup: `BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/backup.sh ~/solusvires-backups`.
 4. `scripts/migrate.sh`. It prints `before:` and `after:`; `after` must end
    in `(head)`. If this deploy brings no new migration, before and after

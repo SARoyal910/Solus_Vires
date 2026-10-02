@@ -12,7 +12,7 @@ Phase 1 (prototype) built public resource pages, accounts, a private client-side
 - **Cloudflare** proxies the public hostname. nginx trusts `CF-Connecting-IP` only from Cloudflare's published ranges (`nginx/snippets/cloudflare-realip.conf`) and refuses connections without Cloudflare's origin-pull client certificate (`authenticated-origin-pulls.conf`). Cloudflare Web Analytics must stay disabled.
 - **Logging:** nginx `access_log off` and uvicorn `--no-access-log`, so no record of which visitor opened which page; Docker logs are size-capped. The privacy page promises this.
 - **Backups:** nightly `pg_dump` on the droplet, encrypted to an `age` public key (`scripts/backup.sh`); restore rehearsed with `scripts/restore_check.sh`.
-- **The owner's Mac** runs a local copy of the stack for development; it is not the origin. `wrangler.jsonc` and `html/_redirects` are dead config from an earlier static-hosting idea (removal is P2-B8).
+- **The owner's Mac** runs a local copy of the stack for development; it is not the origin. (The dead static-hosting config, `wrangler.jsonc` and `html/_redirects`, was deleted in P2-B8; nginx is the only thing that serves the site.)
 - **Testing:** `scripts/test.sh` (ruff + pytest on Python 3.12 against a throwaway Postgres), `node --test tests/web/`, `scripts/preview.sh` (local preview at 127.0.0.1:8099), and CI in `.github/workflows/ci.yml`.
 
 ## Backend
