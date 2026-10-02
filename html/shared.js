@@ -20,6 +20,62 @@ document.addEventListener("keydown", (event) => {
   lastEsc = now;
 });
 
+// Mobile menu: progressive enhancement. On small screens shared.css collapses
+// the page links behind a menu button that only exists once this runs; with
+// JS disabled the links stay visible as a single swipeable row instead.
+const siteHeader = document.querySelector("body > header");
+const primaryNav = siteHeader && siteHeader.querySelector("nav");
+if (siteHeader && primaryNav) {
+  const spanish = (document.documentElement.lang || "").toLowerCase().startsWith("es");
+  const labels = spanish ? { open: "Abrir menú", close: "Cerrar menú" } : { open: "Open menu", close: "Close menu" };
+  primaryNav.id = primaryNav.id || "primary-nav";
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "nav-toggle";
+  toggle.id = "nav-toggle";
+  toggle.setAttribute("aria-controls", primaryNav.id);
+  toggle.innerHTML =
+    '<svg class="icon-menu" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+    '<svg class="icon-close" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  siteHeader.insertBefore(toggle, primaryNav);
+
+  const setMenuOpen = (open) => {
+    siteHeader.classList.toggle("menu-open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? labels.close : labels.open);
+  };
+  setMenuOpen(false);
+  document.body.classList.add("js-nav");
+
+  toggle.addEventListener("click", () => {
+    setMenuOpen(!siteHeader.classList.contains("menu-open"));
+  });
+  primaryNav.addEventListener("click", (event) => {
+    if (event.target.closest("a")) {
+      setMenuOpen(false);
+    }
+  });
+  // pointerdown, not click: iOS Safari does not send click for taps on plain text.
+  document.addEventListener("pointerdown", (event) => {
+    if (siteHeader.classList.contains("menu-open") && !siteHeader.contains(event.target)) {
+      setMenuOpen(false);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && siteHeader.classList.contains("menu-open")) {
+      setMenuOpen(false);
+      toggle.focus();
+    }
+  });
+  const wide = window.matchMedia("(min-width: 921px)");
+  wide.addEventListener("change", (event) => {
+    if (event.matches) {
+      setMenuOpen(false);
+    }
+  });
+}
+
 // Scroll-reveal: progressive enhancement only. Without this script (or with
 // JS disabled), .card/.section-head elements render fully visible via their
 // normal CSS - the shared.css hidden/transition rules only apply once

@@ -337,7 +337,7 @@ Process asks: smoke probe → P2-B5/B7 · fail-closed config → P2-A1, A16 · d
 
 Audience (added after review, not a review finding): men and all genders → D9, P2-D1, D2, D4, D6, D9, C4, §6 guardrail.
 
-Persona findings outside the table: Dana #5 (nav crowding) → Sprint 1 ride-along · Marisol #4 (photos) → P2-E7 · Marisol #5 (PIN warning timing) → P2-A10 · Marisol #6 (legal depth) → P2-D6 · Jo #1 (is this phishing?) → P2-C1, D5 · Jo #3 (repeats, stand-down) → P2-A12, E5 · Jo #4 (push breaks) → P2-A6 · Priya #1 (terms) → P2-C2 · Priya #3 (live sign-ups) → P2-A7 · Priya #4 ("tracked") → Sprint 1 · Priya #5 (help someone) → P2-D4 · Priya #6 (populations) → P2-D3b.
+Persona findings outside the table: Dana #5 (nav crowding) → Sprint 1 ride-along; done 2026-10-01: on phones the links collapse behind a menu button in the header (`html/shared.js` + `html/shared.css`), Quick Exit stays on the one-row header · Marisol #4 (photos) → P2-E7 · Marisol #5 (PIN warning timing) → P2-A10 · Marisol #6 (legal depth) → P2-D6 · Jo #1 (is this phishing?) → P2-C1, D5 · Jo #3 (repeats, stand-down) → P2-A12, E5 · Jo #4 (push breaks) → P2-A6 · Priya #1 (terms) → P2-C2 · Priya #3 (live sign-ups) → P2-A7 · Priya #4 ("tracked") → Sprint 1 · Priya #5 (help someone) → P2-D4 · Priya #6 (populations) → P2-D3b.
 
 ### `DESIGN2.md` §1 "done" conditions
 1 → Sprints 1–2 · 2 → P2-B4 · 3 → P2-C1, C2, C5 · 4 → P2-C3, C7 · 5 → P2-C4, C7 · 6 → P2-D1–D4, D8, D9 · 7 → P2-E3, P2-A3 · 8 → P2-D5, E5, A6 · 9 → P2-F1, F2 · 10 → P2-A7, B10.
