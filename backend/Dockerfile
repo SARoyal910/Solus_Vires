@@ -12,4 +12,9 @@ COPY alembic.ini .
 COPY migrations ./migrations
 COPY scripts ./scripts
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log"]
+# Only the web server. Database migrations are an explicit deploy step
+# (scripts/migrate.sh, docs/RUNBOOK.md), not something every container start
+# or restart does behind your back (engineering review M8). If the schema is
+# behind the code, the healthcheck in docker-compose.yml marks this container
+# unhealthy and `docker compose up --wait` fails.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
