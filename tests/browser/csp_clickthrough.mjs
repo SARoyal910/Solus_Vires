@@ -94,6 +94,22 @@ async function exercise(page, path) {
       if (s.options.length > 1) { s.selectedIndex = 1; s.dispatchEvent(new Event("change", { bubbles: true })); }
     });
   });
+  // Offline copy panel (Emergency/Resources, if present): save, then remove.
+  if (await click(page, "#offline-save-btn")) {
+    await sleep(2500);
+    await click(page, "#offline-remove-btn");
+    await sleep(800);
+  }
+  // Contact form (if the page shows it): fill and send.
+  await page.evaluate(() => {
+    const form = document.getElementById("contact-form");
+    if (!form || form.closest("[hidden]")) return;
+    form.querySelectorAll("input[type=text], input[type=email], input:not([type]), textarea").forEach((el) => {
+      el.value = el.type === "email" ? "test@example.com" : "click-through test";
+    });
+    form.requestSubmit();
+  });
+  await sleep(600);
   // Quick Exit (window.open and print are stubbed above; replace is not, so
   // only check the button is wired, without pressing it).
   await sleep(200);
