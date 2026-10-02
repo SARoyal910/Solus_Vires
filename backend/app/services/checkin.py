@@ -6,16 +6,21 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
 from fastapi import HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
-from ..core.db import SessionLocal
+from ..core.db import SessionLocal, engine
 from ..core.notifications import PushSubscriptionExpired, send_email, send_push
 from ..models.auth import User
 from ..models.checkin import CheckinSchedule, PushSubscription, TrustedContact
 from ..schemas.checkin import PushSubscriptionRequest, ScheduleUpdateRequest, TrustedContactCreate
 
 logger = logging.getLogger("solusvires.checkin")
+
+# Postgres advisory lock id for the alert pass ("SVALERT1" as ASCII). Any
+# process running a pass must hold it; see run_due_alerts_once().
+ALERT_PASS_LOCK_KEY = 0x5356414C45525431
 
 
 def _sign(contact_id: uuid.UUID) -> str:
@@ -303,11 +308,31 @@ class CheckinService:
         db.commit()
         logger.info("checkin_alerts_sent")
 
-    def run_due_alerts_once(self) -> None:
+    def run_due_alerts_once(self) -> bool:
         """Runs one pass over all active schedules, alerting contacts for any overdue survivor.
 
-        Uses its own DB session since this runs outside any HTTP request.
+        Only one process may run a pass at a time: a Postgres advisory lock,
+        held on its own connection for the whole pass, makes a second alert
+        loop against the same database (say, a local uvicorn next to the
+        Docker api) skip instead of sending duplicate alerts (review M1).
+        Returns False when another process held the lock and this pass was skipped.
         """
+        with engine.connect() as lock_conn:
+            acquired = lock_conn.execute(
+                text("SELECT pg_try_advisory_lock(:key)"), {"key": ALERT_PASS_LOCK_KEY}
+            ).scalar()
+            lock_conn.commit()
+            if not acquired:
+                logger.info("checkin_alert_pass_skipped_locked")
+                return False
+            try:
+                self._run_pass()
+            finally:
+                lock_conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": ALERT_PASS_LOCK_KEY})
+                lock_conn.commit()
+        return True
+
+    def _run_pass(self) -> None:
         settings = get_settings()
         db = SessionLocal()
         try:
@@ -328,6 +353,7 @@ class CheckinService:
                         continue
                     self._alert_contacts_for(db, user, schedule)
                 except Exception:
+                    db.rollback()
                     logger.exception("checkin_alert_pass_failed")
         finally:
             db.close()
@@ -336,4 +362,9 @@ class CheckinService:
         settings = get_settings()
         while True:
             await asyncio.sleep(settings.checkin_alert_check_seconds)
-            await asyncio.to_thread(self.run_due_alerts_once)
+            try:
+                await asyncio.to_thread(self.run_due_alerts_once)
+            except Exception:
+                # A failed pass (database briefly unreachable, say) must not
+                # end the loop: alerts would silently stop until a restart.
+                logger.exception("checkin_alert_loop_pass_failed")

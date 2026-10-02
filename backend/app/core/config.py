@@ -22,6 +22,7 @@ class Settings:
     brevo_sender_email: str
     brevo_sender_name: str
     checkin_alert_check_seconds: int
+    checkin_alert_loop_enabled: bool
     checkin_alert_repeat_hours: int
     checkin_token_secret: str
     trust_proxy_headers: bool
@@ -29,11 +30,19 @@ class Settings:
     beta_invite_codes: tuple[str, ...]
 
 
+def _flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() == "true"
+
+
 @lru_cache
 def get_settings() -> Settings:
+    environment = os.getenv("APP_ENV", "development")
     return Settings(
         app_name=os.getenv("APP_NAME", "Solus Vires API"),
-        environment=os.getenv("APP_ENV", "development"),
+        environment=environment,
         contact_sink=os.getenv("CONTACT_SINK", "console"),
         max_contact_message_length=int(os.getenv("MAX_CONTACT_MESSAGE_LENGTH", "3000")),
         site_dir=Path(os.getenv("SITE_DIR", Path(__file__).resolve().parents[3] / "html")),
@@ -51,6 +60,10 @@ def get_settings() -> Settings:
         brevo_sender_email=os.getenv("BREVO_SENDER_EMAIL", "no-reply@example.com"),
         brevo_sender_name=os.getenv("BREVO_SENDER_NAME", "Solus Vires"),
         checkin_alert_check_seconds=int(os.getenv("CHECKIN_ALERT_CHECK_SECONDS", "300")),
+        # On by default only in production, so a local uvicorn pointed at the
+        # shared database doesn't run a second loop (review M1). The advisory
+        # lock in the alert pass makes a second loop harmless anyway.
+        checkin_alert_loop_enabled=_flag("CHECKIN_ALERT_LOOP_ENABLED", environment == "production"),
         checkin_alert_repeat_hours=int(os.getenv("CHECKIN_ALERT_REPEAT_HOURS", "6")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
         trust_proxy_headers=os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true",

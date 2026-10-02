@@ -71,6 +71,33 @@ def trust_proxy(monkeypatch) -> None:
     monkeypatch.setattr(rate_limit, "get_settings", lambda: trusted)
 
 
+@pytest.fixture
+def settings_env() -> Iterator:
+    """Sets environment variables and rebuilds the cached settings; undone after the test.
+
+    Usage: ``settings_env(APP_ENV="production", CONTACT_INBOX_EMAIL="x@example.org")``.
+    A value of None removes the variable.
+    """
+    saved: dict[str, str | None] = {}
+
+    def apply(**env: str | None) -> None:
+        for key, value in env.items():
+            saved.setdefault(key, os.environ.get(key))
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        get_settings.cache_clear()
+
+    yield apply
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+    get_settings.cache_clear()
+
+
 def make_client() -> TestClient:
     # Not used as a context manager, so the app lifespan (and with it the
     # background alert loop) never starts during tests.

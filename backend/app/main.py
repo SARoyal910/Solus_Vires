@@ -21,11 +21,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.warning(
             "CHECKIN_TOKEN_SECRET is not set - check-in invite links are insecure until it is."
         )
-    alert_task = asyncio.create_task(CheckinService().run_alert_loop())
+    alert_task = None
+    if settings.checkin_alert_loop_enabled:
+        alert_task = asyncio.create_task(CheckinService().run_alert_loop())
+    else:
+        logger.info("checkin_alert_loop_disabled")
     try:
         yield
     finally:
-        alert_task.cancel()
+        if alert_task is not None:
+            alert_task.cancel()
 
 
 def create_app() -> FastAPI:
