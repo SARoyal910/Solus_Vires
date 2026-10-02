@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
@@ -9,6 +9,7 @@ from ..core.rate_limit import RateLimiter
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.checkin import (
+    AlertLogEntryResponse,
     InviteInfoResponse,
     PushSubscriptionRequest,
     ScheduleResponse,
@@ -36,6 +37,8 @@ def _contact_response(db: Session, contact) -> TrustedContactResponse:
         invited_at=contact.invited_at,
         responded_at=contact.responded_at,
         subscribed_devices=service.subscribed_device_count(db, contact.id),
+        push_last_confirmed_at=service.push_last_confirmed(db, contact.id),
+        push_lost_at=contact.push_lost_at,
     )
 
 
@@ -47,6 +50,7 @@ def _schedule_response(schedule) -> ScheduleResponse:
         last_checkin_at=schedule.last_checkin_at,
         next_deadline_at=schedule.next_deadline_at,
         overdue=CheckinService.is_overdue(schedule),
+        alerts_sent=schedule.alerts_sent_count or 0,
     )
 
 
@@ -103,17 +107,43 @@ async def get_schedule(
 @router.put("/schedule", response_model=ScheduleResponse)
 async def update_schedule(
     payload: ScheduleUpdateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ScheduleResponse:
-    return _schedule_response(service.update_schedule(db, user, payload))
+    schedule, stand_down = service.update_schedule(db, user, payload)
+    if stand_down:
+        background_tasks.add_task(service.send_stand_down, user.id, stand_down)
+    return _schedule_response(schedule)
 
 
 @router.post("/schedule/checkin", response_model=ScheduleResponse)
 async def checkin(
-    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> ScheduleResponse:
-    return _schedule_response(service.checkin(db, user))
+    schedule, needs_stand_down = service.checkin(db, user)
+    if needs_stand_down:
+        # Sent after the response, so "I'm OK" never waits on email or push.
+        background_tasks.add_task(service.send_stand_down, user.id, "checked_in")
+    return _schedule_response(schedule)
+
+
+# ---------- Survivor-authenticated: alert history ----------
+
+
+@router.get("/alerts", response_model=list[AlertLogEntryResponse])
+async def list_alerts(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> list[AlertLogEntryResponse]:
+    return [AlertLogEntryResponse.model_validate(e, from_attributes=True) for e in service.list_alert_log(db, user)]
+
+
+@router.delete("/alerts")
+async def clear_alerts(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict[str, bool]:
+    service.clear_alert_log(db, user)
+    return {"ok": True}
 
 
 # ---------- Public: config ----------

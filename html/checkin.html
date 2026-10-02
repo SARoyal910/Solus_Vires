@@ -104,6 +104,24 @@
 
         <div id="contacts-list" class="grid two"></div>
       </div>
+
+      <div class="band">
+        <div class="section-head">
+          <p class="eyebrow">Only you can see this</p>
+          <h2>Alert history</h2>
+          <p>When alerts went out for you, and when your contacts were told they had stopped. It shows how many people were reached, never what anyone wrote. Entries older than 90 days are deleted automatically, and you can clear them now.</p>
+        </div>
+        <article class="card">
+          <ul id="alert-history"></ul>
+          <p id="alert-history-empty" class="status">No alerts have been sent for you.</p>
+          <div id="alert-history-actions" hidden>
+            <div class="actions">
+              <button type="button" class="btn" id="clear-history-btn">Clear history</button>
+            </div>
+          </div>
+          <p id="alert-history-status" class="status" aria-live="polite"></p>
+        </article>
+      </div>
     </section>
   </main>
 

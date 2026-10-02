@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
 from fastapi import HTTPException, status
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
@@ -14,7 +14,7 @@ from ..core.db import SessionLocal, engine
 from ..core.notifications import PushSubscriptionExpired, send_email, send_push
 from ..core.security import sweep_expired_sessions
 from ..models.auth import User
-from ..models.checkin import CheckinSchedule, PushSubscription, TrustedContact
+from ..models.checkin import CheckinAlertLog, CheckinSchedule, PushSubscription, TrustedContact
 from ..schemas.checkin import PushSubscriptionRequest, ScheduleUpdateRequest, TrustedContactCreate
 
 logger = logging.getLogger("solusvires.checkin")
@@ -72,9 +72,17 @@ def _repeat_phrase(repeat_hours: int) -> str:
     return "every hour" if repeat_hours == 1 else f"every {repeat_hours} hours"
 
 
-def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hours: int) -> str:
+def _alert_label(number: int) -> str:
+    return "Check-in alert" if number <= 1 else f"Check-in alert {number}"
+
+
+def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hours: int, number: int = 1) -> str:
+    repeat_line = (
+        "" if number <= 1 else f"<p>This is alert number {number}: {username} still hasn't checked in.</p>"
+    )
     return f"""
     <p><strong>{username} hasn't checked in on Solus Vires as expected.</strong></p>
+    {repeat_line}
     <p>This is an automated safety check-in alert. It does not necessarily mean something is
     wrong, but {username} set this up to reach you if they miss a scheduled check-in.
     Consider reaching out to them the way you normally would. Don't contact the person they may
@@ -83,6 +91,25 @@ def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hour
     <p>You'll get this alert again {_repeat_phrase(repeat_hours)} until {username} checks in.</p>
     <p><a href="{manage_url}">Manage or stop these alerts</a></p>
     """.strip()
+
+
+def _stand_down_email_html(username: str, manage_url: str, base_url: str, reason: str) -> str:
+    if reason == "turned_off":
+        what = f"{username} has turned off their check-in schedule, so the missed check-in alerts have stopped."
+    else:
+        what = f"{username} has checked in on Solus Vires, so the missed check-in alerts have stopped."
+    return f"""
+    <p><strong>{what}</strong></p>
+    <p>This only tells you that someone signed in to their account. If you were already worried about
+    {username}, it's still fine to reach out the way you normally would. Don't contact the person they
+    may be afraid of.</p>
+    <p><a href="{base_url}/if-you-get-an-alert.html">What to do when you get an alert</a></p>
+    <p><a href="{manage_url}">Manage or stop these alerts</a></p>
+    """.strip()
+
+
+# Alert history older than this is deleted by the maintenance sweep.
+ALERT_LOG_RETENTION = timedelta(days=90)
 
 
 class CheckinService:
@@ -139,12 +166,15 @@ class CheckinService:
 
     def resend_invite(self, db: Session, user: User, contact_id: uuid.UUID) -> TrustedContact:
         contact = self._get_owned_contact(db, user, contact_id)
-        if contact.status not in ("pending", "declined"):
+        # A contact who stopped alerts can be invited again: they get a fresh
+        # invite and nothing reaches them unless they accept it again.
+        if contact.status not in ("pending", "declined", "revoked"):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="This contact already responded."
+                status_code=status.HTTP_409_CONFLICT, detail="This contact has already accepted."
             )
         contact.status = "pending"
         contact.responded_at = None
+        contact.invited_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(contact)
 
@@ -154,6 +184,30 @@ class CheckinService:
 
     def subscribed_device_count(self, db: Session, contact_id: uuid.UUID) -> int:
         return db.query(PushSubscription).filter(PushSubscription.trusted_contact_id == contact_id).count()
+
+    def push_last_confirmed(self, db: Session, contact_id: uuid.UUID) -> datetime | None:
+        """When the push service last accepted an alert for any of this contact's devices."""
+        return (
+            db.query(func.max(PushSubscription.last_push_ok_at))
+            .filter(PushSubscription.trusted_contact_id == contact_id)
+            .scalar()
+        )
+
+    # ---------- Alert history (survivor-authenticated) ----------
+
+    def list_alert_log(self, db: Session, user: User, limit: int = 50) -> list[CheckinAlertLog]:
+        return (
+            db.query(CheckinAlertLog)
+            .filter(CheckinAlertLog.user_id == user.id)
+            .order_by(CheckinAlertLog.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def clear_alert_log(self, db: Session, user: User) -> None:
+        db.query(CheckinAlertLog).filter(CheckinAlertLog.user_id == user.id).delete()
+        db.commit()
+        logger.info("checkin_alert_log_cleared")
 
     # ---------- Public invite endpoints (token-authenticated, no account) ----------
 
@@ -171,8 +225,18 @@ class CheckinService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found.")
         return contact, user
 
+    @staticmethod
+    def _require_not_revoked(contact: TrustedContact) -> None:
+        # Someone who stopped being a contact only comes back through a new
+        # invite from the survivor, never by replaying an old link.
+        if contact.status == "revoked":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="You stopped these alerts. A new invite is needed."
+            )
+
     def accept_invite(self, db: Session, token: str) -> TrustedContact:
         contact = self._get_contact_by_token(db, token)
+        self._require_not_revoked(contact)
         contact.status = "accepted"
         contact.responded_at = datetime.now(timezone.utc)
         db.commit()
@@ -182,6 +246,7 @@ class CheckinService:
 
     def decline_invite(self, db: Session, token: str) -> TrustedContact:
         contact = self._get_contact_by_token(db, token)
+        self._require_not_revoked(contact)
         contact.status = "declined"
         contact.responded_at = datetime.now(timezone.utc)
         db.commit()
@@ -213,6 +278,7 @@ class CheckinService:
             sub.auth = payload.keys.auth
             sub.last_seen_at = now
 
+        contact.push_lost_at = None
         if not any(sub.trusted_contact_id == contact.id for sub in same_device):
             db.add(
                 PushSubscription(
@@ -239,9 +305,18 @@ class CheckinService:
     def get_schedule(self, db: Session, user: User) -> CheckinSchedule:
         return self._get_or_create_schedule(db, user)
 
-    def update_schedule(self, db: Session, user: User, payload: ScheduleUpdateRequest) -> CheckinSchedule:
+    def update_schedule(
+        self, db: Session, user: User, payload: ScheduleUpdateRequest
+    ) -> tuple[CheckinSchedule, str | None]:
+        """Saves the schedule. Also returns a stand-down reason when contacts were
+        mid-alert and must now be told the alerts have stopped, else None."""
         schedule = self._get_or_create_schedule(db, user)
         was_active = schedule.active
+        stand_down = None
+        if was_active and not payload.active and schedule.alerts_sent_count > 0:
+            stand_down = "turned_off"
+            schedule.alerts_sent_count = 0
+            schedule.last_alert_sent_at = None
         schedule.active = payload.active
         schedule.interval_hours = payload.interval_hours
         schedule.grace_hours = payload.grace_hours
@@ -251,6 +326,7 @@ class CheckinService:
             # Turning check-ins on counts as checking in.
             schedule.last_checkin_at = now
             schedule.last_alert_sent_at = None
+            schedule.alerts_sent_count = 0
         if payload.active:
             # Recomputed on every save, so shortening the interval takes
             # effect now rather than after the old deadline (review M4). A
@@ -263,18 +339,22 @@ class CheckinService:
         db.commit()
         db.refresh(schedule)
         logger.info("checkin_schedule_updated")
-        return schedule
+        return schedule, stand_down
 
-    def checkin(self, db: Session, user: User) -> CheckinSchedule:
+    def checkin(self, db: Session, user: User) -> tuple[CheckinSchedule, bool]:
+        """Records "I'm OK". Also returns whether contacts were alerted since the
+        last check-in and so need a stand-down."""
         schedule = self._get_or_create_schedule(db, user)
         now = datetime.now(timezone.utc)
+        needs_stand_down = schedule.alerts_sent_count > 0
         schedule.last_checkin_at = now
         schedule.next_deadline_at = now + timedelta(hours=schedule.interval_hours)
         schedule.last_alert_sent_at = None
+        schedule.alerts_sent_count = 0
         db.commit()
         db.refresh(schedule)
         logger.info("checkin_recorded")
-        return schedule
+        return schedule, needs_stand_down
 
     @staticmethod
     def is_overdue(schedule: CheckinSchedule) -> bool:
@@ -285,47 +365,125 @@ class CheckinService:
 
     # ---------- Background alert loop ----------
 
-    def _alert_contacts_for(self, db: Session, user: User, schedule: CheckinSchedule) -> None:
+    def _notify_contacts(
+        self, db: Session, user: User, *, push_title: str, push_body: str, subject: str, html_for
+    ) -> CheckinAlertLog:
+        """Pushes to every device and emails every accepted contact; returns counts for the log."""
         settings = get_settings()
         contacts = (
             db.query(TrustedContact)
             .filter(TrustedContact.user_id == user.id, TrustedContact.status == "accepted")
             .all()
         )
-
+        entry = CheckinAlertLog(
+            user_id=user.id, contacts_notified=len(contacts), emails_sent=0, pushes_sent=0, pushes_failed=0
+        )
+        now = datetime.now(timezone.utc)
+        dead_endpoints: set[str] = set()
         for contact in contacts:
             for sub in list(contact.subscriptions):
+                if sub.endpoint in dead_endpoints:
+                    entry.pushes_failed += 1
+                    continue
                 try:
-                    send_push(
+                    delivered = send_push(
                         sub,
-                        title="Solus Vires check-in alert",
-                        body=(
-                            f"{user.username} missed a scheduled check-in. This repeats "
-                            f"{_repeat_phrase(settings.checkin_alert_repeat_hours)} until they check in."
-                        ),
+                        title=push_title,
+                        body=push_body,
                         url=f"{settings.public_base_url}/if-you-get-an-alert.html",
                     )
                 except PushSubscriptionExpired:
-                    # The device is gone for every contact it served, not just this one.
+                    # The device is gone for every contact it served, not just
+                    # this one; flag each of them so the survivor can see it.
+                    owners = [
+                        row.trusted_contact_id
+                        for row in db.query(PushSubscription).filter(PushSubscription.endpoint == sub.endpoint)
+                    ]
+                    db.query(TrustedContact).filter(TrustedContact.id.in_(owners)).update(
+                        {TrustedContact.push_lost_at: now}, synchronize_session=False
+                    )
+                    dead_endpoints.add(sub.endpoint)
                     db.query(PushSubscription).filter(PushSubscription.endpoint == sub.endpoint).delete()
                     db.commit()
+                    entry.pushes_failed += 1
+                    continue
+                if delivered:
+                    sub.last_push_ok_at = now
+                    entry.pushes_sent += 1
+                else:
+                    entry.pushes_failed += 1
 
-            # Email goes out on every alert, not only when push fails: push
-            # delivery is never confirmed, and a duplicate alert is safer than
-            # a missed one (Phase 2 decision D4).
             manage_url = f"{settings.public_base_url}/checkin-invite.html?token={make_contact_token(contact.id)}"
-            send_email(
+            if send_email(
                 to_email=contact.contact_email,
                 to_name=contact.nickname,
-                subject=f"Check-in alert: {user.username} missed a check-in",
-                html_content=_alert_email_html(
-                    user.username, manage_url, settings.public_base_url, settings.checkin_alert_repeat_hours
-                ),
-            )
+                subject=subject,
+                html_content=html_for(manage_url),
+            ):
+                entry.emails_sent += 1
+        return entry
 
+    def _alert_contacts_for(self, db: Session, user: User, schedule: CheckinSchedule) -> None:
+        settings = get_settings()
+        number = (schedule.alerts_sent_count or 0) + 1
+        label = _alert_label(number)
+        # Email goes out on every alert, not only when push fails: push
+        # delivery is never confirmed, and a duplicate alert is safer than a
+        # missed one (Phase 2 decision D4).
+        entry = self._notify_contacts(
+            db,
+            user,
+            push_title=f"Solus Vires {label.lower()}",
+            push_body=(
+                f"{user.username} missed a scheduled check-in. This repeats "
+                f"{_repeat_phrase(settings.checkin_alert_repeat_hours)} until they check in."
+            ),
+            subject=f"{label}: {user.username} missed a check-in",
+            html_for=lambda manage_url: _alert_email_html(
+                user.username, manage_url, settings.public_base_url, settings.checkin_alert_repeat_hours, number
+            ),
+        )
+        entry.kind = "alert"
+        entry.alert_number = number
+        db.add(entry)
+        schedule.alerts_sent_count = number
         schedule.last_alert_sent_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("checkin_alerts_sent")
+
+    def send_stand_down(self, user_id: uuid.UUID, reason: str = "checked_in") -> None:
+        """Tells contacts who were alerted that the alerts have stopped.
+
+        Runs after the survivor's request has returned (a FastAPI background
+        task), with its own database session. Never raises.
+        """
+        settings = get_settings()
+        try:
+            with SessionLocal() as db:
+                user = db.get(User, user_id)
+                if user is None:
+                    return
+                body = (
+                    f"{user.username} turned off check-ins. Alerts have stopped."
+                    if reason == "turned_off"
+                    else f"{user.username} checked in. Alerts have stopped."
+                )
+                entry = self._notify_contacts(
+                    db,
+                    user,
+                    push_title="Solus Vires: alerts stopped",
+                    push_body=body,
+                    subject=f"{user.username} " + ("turned off check-ins" if reason == "turned_off" else "checked in"),
+                    html_for=lambda manage_url: _stand_down_email_html(
+                        user.username, manage_url, settings.public_base_url, reason
+                    ),
+                )
+                entry.kind = "turned_off" if reason == "turned_off" else "stand_down"
+                db.add(entry)
+                db.commit()
+                logger.info("checkin_stand_down_sent")
+        except Exception:
+            logger.exception("checkin_stand_down_failed")
 
     def run_due_alerts_once(self) -> bool:
         """Runs one pass over all active schedules, alerting contacts for any overdue survivor.
@@ -383,6 +541,10 @@ class CheckinService:
         try:
             with SessionLocal() as db:
                 deleted = sweep_expired_sessions(db)
+                db.query(CheckinAlertLog).filter(
+                    CheckinAlertLog.created_at < datetime.now(timezone.utc) - ALERT_LOG_RETENTION
+                ).delete()
+                db.commit()
             if deleted:
                 logger.info("expired_sessions_swept", extra={"count": deleted})
         except Exception:

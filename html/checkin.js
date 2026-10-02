@@ -27,6 +27,8 @@
     return new Date(iso).toLocaleString();
   }
 
+  let alertsSent = 0;
+
   async function loadSchedule() {
     const schedule = await api("/api/checkin/schedule");
     const form = document.getElementById("schedule-form");
@@ -34,12 +36,18 @@
     form.grace_hours.value = String(schedule.grace_hours);
     form.active.checked = schedule.active;
 
+    alertsSent = schedule.alerts_sent || 0;
     const card = document.getElementById("checkin-now-card");
     const deadlineText = document.getElementById("deadline-text");
     if (schedule.active) {
       card.hidden = false;
-      if (schedule.overdue) {
-        deadlineText.textContent = "You're overdue — your trusted contacts may have already been alerted.";
+      if (alertsSent > 0) {
+        deadlineText.textContent =
+          alertsSent === 1
+            ? "Your trusted contacts have been sent an alert. Check in to stop the alerts; they'll be told you checked in."
+            : `Your trusted contacts have been sent ${alertsSent} alerts. Check in to stop the alerts; they'll be told you checked in.`;
+      } else if (schedule.overdue) {
+        deadlineText.textContent = "You're overdue. If you don't check in, your trusted contacts will be alerted soon.";
       } else {
         deadlineText.textContent = `Next check-in due by ${fmtDate(schedule.next_deadline_at)}.`;
       }
@@ -60,32 +68,56 @@
     email.textContent = contact.contact_email;
     card.appendChild(email);
 
+    const devices = contact.subscribed_devices === 1 ? "1 device" : `${contact.subscribed_devices} devices`;
     const statusLabels = {
       pending: "Invited — waiting on them",
-      accepted: `Accepted · ${contact.subscribed_devices} device(s) enabled for push`,
+      accepted: `Accepted · email, plus push on ${devices}`,
       declined: "Declined",
-      revoked: "Stopped by contact",
+      revoked: "They stopped these alerts. You can invite them again; nothing reaches them unless they accept.",
     };
     const statusP = document.createElement("p");
     statusP.className = "status";
     statusP.textContent = statusLabels[contact.status] || contact.status;
     card.appendChild(statusP);
 
+    if (contact.status === "accepted" && contact.subscribed_devices > 0) {
+      const pushP = document.createElement("p");
+      pushP.textContent = contact.push_last_confirmed_at
+        ? `Push last accepted for delivery: ${fmtDate(contact.push_last_confirmed_at)}. (Accepted by the push service, which isn't proof they saw it.)`
+        : "No push has been sent to them yet.";
+      card.appendChild(pushP);
+    }
+
+    if (contact.push_lost_at) {
+      const warn = document.createElement("p");
+      warn.className = "notice";
+      warn.textContent =
+        `Push notifications stopped working on their device (noticed ${fmtDate(contact.push_lost_at)}). ` +
+        "They'll still get alerts by email. To get push back, they can open their invite link again on that device and turn notifications on.";
+      card.appendChild(warn);
+    }
+
     const actions = document.createElement("div");
     actions.className = "actions";
 
-    if (contact.status === "pending" || contact.status === "declined") {
+    const actionStatus = document.createElement("p");
+    actionStatus.className = "status";
+    actionStatus.setAttribute("aria-live", "polite");
+
+    if (["pending", "declined", "revoked"].includes(contact.status)) {
       const resendBtn = document.createElement("button");
       resendBtn.type = "button";
       resendBtn.className = "btn";
-      resendBtn.textContent = "Resend invite";
+      resendBtn.textContent = contact.status === "revoked" ? "Invite again" : "Resend invite";
       resendBtn.addEventListener("click", async () => {
         resendBtn.disabled = true;
+        actionStatus.textContent = "Sending invite...";
         try {
           await api(`/api/checkin/contacts/${contact.id}/resend`, { method: "POST" });
           await loadContacts();
         } catch (e) {
           resendBtn.disabled = false;
+          actionStatus.textContent = e.message || "Unable to send the invite right now.";
         }
       });
       actions.appendChild(resendBtn);
@@ -102,6 +134,7 @@
     actions.appendChild(removeBtn);
 
     card.appendChild(actions);
+    card.appendChild(actionStatus);
     return card;
   }
 
@@ -111,7 +144,7 @@
     list.textContent = "";
     if (contacts.length === 0) {
       const empty = document.createElement("p");
-      empty.style.color = "var(--muted)";
+      empty.className = "status";
       empty.textContent = "No trusted contacts yet.";
       list.appendChild(empty);
       return;
@@ -135,6 +168,7 @@
       });
       status.textContent = "Saved.";
       await loadSchedule();
+      await loadHistory();
     } catch (e) {
       status.textContent = "Unable to save right now.";
     }
@@ -144,9 +178,13 @@
     const status = document.getElementById("checkin-status");
     status.textContent = "Checking in...";
     try {
+      const hadAlerts = alertsSent > 0;
       await api("/api/checkin/schedule/checkin", { method: "POST" });
-      status.textContent = "Checked in.";
+      status.textContent = hadAlerts
+        ? "Checked in. The contacts who were alerted are being told the alerts have stopped."
+        : "Checked in.";
       await loadSchedule();
+      await loadHistory();
     } catch (e) {
       status.textContent = "Unable to check in right now.";
     }
@@ -173,6 +211,45 @@
     }
   });
 
+  function historyLine(entry) {
+    const when = fmtDate(entry.created_at);
+    const people = entry.contacts_notified === 1 ? "1 contact" : `${entry.contacts_notified} contacts`;
+    const channels = `${entry.emails_sent} email${entry.emails_sent === 1 ? "" : "s"}, ${entry.pushes_sent} push${entry.pushes_sent === 1 ? "" : "es"} sent` +
+      (entry.pushes_failed ? `, ${entry.pushes_failed} push${entry.pushes_failed === 1 ? "" : "es"} failed` : "");
+    if (entry.kind === "alert") {
+      const label = entry.alert_number > 1 ? `Alert ${entry.alert_number}` : "Alert";
+      return `${when}: ${label} sent to ${people} (${channels}).`;
+    }
+    if (entry.kind === "turned_off") {
+      return `${when}: You turned check-ins off; ${people} told the alerts stopped (${channels}).`;
+    }
+    return `${when}: You checked in; ${people} told the alerts stopped (${channels}).`;
+  }
+
+  async function loadHistory() {
+    const entries = await api("/api/checkin/alerts");
+    const list = document.getElementById("alert-history");
+    list.textContent = "";
+    entries.forEach((entry) => {
+      const li = document.createElement("li");
+      li.textContent = historyLine(entry);
+      list.appendChild(li);
+    });
+    document.getElementById("alert-history-empty").hidden = entries.length > 0;
+    document.getElementById("alert-history-actions").hidden = entries.length === 0;
+  }
+
+  document.getElementById("clear-history-btn").addEventListener("click", async () => {
+    const status = document.getElementById("alert-history-status");
+    try {
+      await api("/api/checkin/alerts", { method: "DELETE" });
+      status.textContent = "History cleared.";
+      await loadHistory();
+    } catch (e) {
+      status.textContent = "Unable to clear history right now.";
+    }
+  });
+
   async function init() {
     try {
       await api("/api/auth/me");
@@ -183,6 +260,7 @@
     signedInView.hidden = false;
     await loadSchedule();
     await loadContacts();
+    await loadHistory();
   }
 
   init();
