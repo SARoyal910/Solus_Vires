@@ -12,6 +12,8 @@ class Settings:
     environment: str
     contact_sink: str
     max_contact_message_length: int
+    contact_inbox_email: str
+    contact_response_days: int
     site_dir: Path
     database_url: str
     session_cookie_secure: bool
@@ -48,6 +50,11 @@ def get_settings() -> Settings:
         environment=environment,
         contact_sink=os.getenv("CONTACT_SINK", "console"),
         max_contact_message_length=int(os.getenv("MAX_CONTACT_MESSAGE_LENGTH", "3000")),
+        # Where contact-form messages are emailed (decision D3). Empty = the
+        # form is off and the page says so, rather than pretending to send.
+        contact_inbox_email=os.getenv("CONTACT_INBOX_EMAIL", "").strip(),
+        # The reply window the form promises. Keep it honest: one person reads these.
+        contact_response_days=int(os.getenv("CONTACT_RESPONSE_DAYS", "7")),
         site_dir=Path(os.getenv("SITE_DIR", Path(__file__).resolve().parents[3] / "html")),
         database_url=os.getenv(
             "DATABASE_URL",
