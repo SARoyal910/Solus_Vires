@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..core.config import get_settings
 from ..core.db import SessionLocal, engine
 from ..core.notifications import PushSubscriptionExpired, send_email, send_push
+from ..core.security import sweep_expired_sessions
 from ..models.auth import User
 from ..models.checkin import CheckinSchedule, PushSubscription, TrustedContact
 from ..schemas.checkin import PushSubscriptionRequest, ScheduleUpdateRequest, TrustedContactCreate
@@ -345,6 +346,7 @@ class CheckinService:
                 return False
             try:
                 self._run_pass()
+                self._run_maintenance()
             finally:
                 lock_conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": ALERT_PASS_LOCK_KEY})
                 lock_conn.commit()
@@ -375,6 +377,16 @@ class CheckinService:
                     logger.exception("checkin_alert_pass_failed")
         finally:
             db.close()
+
+    def _run_maintenance(self) -> None:
+        """Housekeeping that rides on the alert loop; a failure here never affects alerts."""
+        try:
+            with SessionLocal() as db:
+                deleted = sweep_expired_sessions(db)
+            if deleted:
+                logger.info("expired_sessions_swept", extra={"count": deleted})
+        except Exception:
+            logger.exception("maintenance_failed")
 
     async def run_alert_loop(self) -> None:
         settings = get_settings()

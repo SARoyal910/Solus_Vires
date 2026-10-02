@@ -16,6 +16,10 @@ from .db import get_db
 
 SESSION_COOKIE_NAME = "sv_session"
 
+# last_seen_at is only rewritten when it is at least this old, so ordinary
+# browsing doesn't turn every authenticated read into a database write (M7).
+LAST_SEEN_RESOLUTION = timedelta(minutes=5)
+
 _hasher = PasswordHasher()
 
 
@@ -125,10 +129,19 @@ def get_current_user(
     if session_row is None or session_row.expires_at <= datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
 
-    session_row.last_seen_at = datetime.now(timezone.utc)
-    db.commit()
+    now = datetime.now(timezone.utc)
+    if session_row.last_seen_at is None or now - session_row.last_seen_at >= LAST_SEEN_RESOLUTION:
+        session_row.last_seen_at = now
+        db.commit()
 
     user = db.get(User, session_row.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
     return user
+
+
+def sweep_expired_sessions(db: Session) -> int:
+    """Deletes session rows past their expiry. Run from the background loop (M7)."""
+    deleted = db.query(SessionModel).filter(SessionModel.expires_at <= datetime.now(timezone.utc)).delete()
+    db.commit()
+    return deleted
