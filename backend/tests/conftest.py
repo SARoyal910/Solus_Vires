@@ -24,6 +24,7 @@ if not TEST_DATABASE_URL.rsplit("/", 1)[-1].endswith("_test"):
 # environment must be in place before anything under app/ is imported.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("CHECKIN_TOKEN_SECRET", "test-secret")
+os.environ.setdefault("RECOVERY_CODE_PEPPER", "test-pepper")
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("BETA_SIGNUPS_ENABLED", "true")  # gate behaviour is tested explicitly
 

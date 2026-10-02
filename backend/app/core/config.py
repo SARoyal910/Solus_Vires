@@ -25,6 +25,7 @@ class Settings:
     checkin_alert_loop_enabled: bool
     checkin_alert_repeat_hours: int
     checkin_token_secret: str
+    recovery_code_pepper: str
     trust_proxy_headers: bool
     beta_signups_open: bool
     beta_invite_codes: tuple[str, ...]
@@ -66,6 +67,9 @@ def get_settings() -> Settings:
         checkin_alert_loop_enabled=_flag("CHECKIN_ALERT_LOOP_ENABLED", environment == "production"),
         checkin_alert_repeat_hours=int(os.getenv("CHECKIN_ALERT_REPEAT_HOURS", "6")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
+        # Server-side key for recovery-code HMACs. Never change it once codes
+        # exist: every code issued under the old value would stop working.
+        recovery_code_pepper=os.getenv("RECOVERY_CODE_PEPPER", ""),
         trust_proxy_headers=os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true",
         # Closed by default: until legal and advocacy review are done, new
         # accounts need an invite code (engineering review H6).
