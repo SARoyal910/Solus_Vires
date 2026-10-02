@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Response, status
@@ -22,6 +23,11 @@ from ..models.auth import RecoveryCode, User
 from ..schemas.auth import DeleteAccountRequest, LoginRequest, RecoverRequest, RegisterRequest
 
 logger = logging.getLogger("solusvires.auth")
+
+# An unknown username is checked against this so it costs the same Argon2 work
+# as a wrong password; otherwise response time reveals which usernames exist
+# (review M2). The password itself is random and never used again.
+_DUMMY_PASSWORD_HASH = hash_secret(secrets.token_urlsafe(16))
 
 
 def _digest(value: str) -> bytes:
@@ -73,6 +79,7 @@ class AuthService:
 
         user = db.query(User).filter(User.username == payload.username).first()
         if user is None:
+            verify_secret(_DUMMY_PASSWORD_HASH, payload.password)
             login_throttle.record_failure(client_ip, payload.username)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
