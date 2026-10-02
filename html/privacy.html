@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Exactly what Solus Vires stores, what it cannot see, who else handles your data, and how to delete it.">
   <link rel="stylesheet" href="/shared.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-180.png">
 </head>
 <body>
   <header>
@@ -51,6 +53,7 @@
           <ul>
             <li>To stop abuse like password guessing, the server briefly holds IP addresses in memory. They're never written to disk and are gone whenever the server restarts.</li>
             <li>The Recovery page can remember which exercises you've done, only on your own device, and you can clear it there. The "Is this abuse?" check stores nothing at all.</li>
+            <li>If you press "Save on this device" on the Emergency or Resources page, a copy of those pages is kept in your browser so they open without internet. Nothing is saved unless you press it, and the same button removes it. Someone who looks through your browser's stored site data could see it.</li>
           </ul>
         </article>
       </div>
@@ -182,7 +185,7 @@
 
     <!-- Kept true by: nginx `access_log off` (nginx/conf.d/default.conf), uvicorn --no-access-log (backend/Dockerfile),
          in-memory-only rate limiter and login throttle (backend/app/core/), no-content logging (backend/app/services/),
-         30-dump backup rotation (scripts/backup.sh), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
+         30-dump backup rotation (scripts/backup.sh), opt-in-only offline copy of public pages (html/sw.js, html/offline.js), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
          Terms (added 2026-10-02, P2-C2): alerts come only from the background loop in backend/app/services/checkin.py via
          Web Push and Brevo, both best-effort (backend/app/core/notifications.py); sign-ups invite-only (BETA_SIGNUPS_ENABLED);
          no notes export until P2-E3. -->
