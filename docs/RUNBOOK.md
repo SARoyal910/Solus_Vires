@@ -194,8 +194,8 @@ checked 2026-10-02).
 ### 2. Are check-in alerts running? Healthchecks.io heartbeat
 
 The alert loop runs inside the api every `CHECKIN_ALERT_CHECK_SECONDS`
-(300 s). After each pass it requests `HEALTHCHECK_PING_URL` (Lane A's
-setting; empty means no ping). If the pings stop, the loop has stopped,
+(300 s). After each pass it requests `HEALTHCHECK_PING_URL` (empty means
+no ping). If the pings stop, the loop has stopped,
 even if `/api/health` still answers, and Healthchecks.io emails the owner.
 That is the case UptimeRobot can't see. Free "Hobbyist" plan: 20 checks
 (healthchecks.io/pricing, checked 2026-10-02).
