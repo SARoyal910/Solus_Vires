@@ -50,6 +50,9 @@ services:
       - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-Solus Vires}
       - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
       - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
+      # Optional heartbeat (P2-F2): pinged after each alert pass, so a stopped
+      # alert loop pages someone. Empty = no ping. docs/RUNBOOK.md "Monitoring".
+      - HEALTHCHECK_PING_URL=${HEALTHCHECK_PING_URL:-}
     expose:
       - "8000"
     # Production runs the code baked into the image: no source bind mount

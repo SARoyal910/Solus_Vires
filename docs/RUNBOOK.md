@@ -164,6 +164,67 @@ Kept for the record.
   then `docker compose up -d --build`. Migrations 0003/0004 can stay applied;
   the old code ignores them.
 
+## Monitoring
+
+Two free services watch the site from outside and email the owner,
+**Steven Royal**, when something stops (P2-F2). Neither sees any visitor or
+survivor data: one fetches a public health URL, the other only receives an
+empty "I'm alive" request from the droplet. Sign-ups are done by the owner;
+nothing here has been set up yet.
+
+### 1. Is the site up? UptimeRobot on /api/health
+
+Free plan: 50 monitors, checked every 5 minutes, email alerts, keyword
+checks ("good for hobby and non-profit projects", uptimerobot.com/pricing,
+checked 2026-10-02).
+
+1. Sign up at uptimerobot.com with the operator email address.
+2. Add a monitor: type **Keyword**, URL `https://solusvires.com/api/health`,
+   keyword `"ok"`, alert when the keyword **does not exist**, interval
+   5 minutes. That catches nginx up but the API down (a 502 page has no
+   `"ok"`), not just the droplet being off.
+3. Optionally a second **HTTP(s)** monitor on `https://solusvires.com/emergency.html`,
+   the page that matters most when everything else is broken.
+4. Alert contact: the operator's email. Don't make a public status page
+   (it would list the URLs being watched, for no benefit).
+5. If Cloudflare's Bot Fight Mode is ever turned on and the monitor starts
+   failing while the site works, allow UptimeRobot rather than turning the
+   monitor off.
+
+### 2. Are check-in alerts running? Healthchecks.io heartbeat
+
+The alert loop runs inside the api every `CHECKIN_ALERT_CHECK_SECONDS`
+(300 s). After each pass it requests `HEALTHCHECK_PING_URL` (Lane A's
+setting; empty means no ping). If the pings stop, the loop has stopped,
+even if `/api/health` still answers, and Healthchecks.io emails the owner.
+That is the case UptimeRobot can't see. Free "Hobbyist" plan: 20 checks
+(healthchecks.io/pricing, checked 2026-10-02).
+
+1. Sign up at healthchecks.io with the operator email address.
+2. Add a check named `alert-loop`. **Period: 5 minutes, Grace: 10 minutes**
+   (match the period to `CHECKIN_ALERT_CHECK_SECONDS` if you change it).
+3. Copy its ping URL (`https://hc-ping.com/<uuid>`). It's a secret in the
+   sense that anyone with it can send fake "alive" pings; keep it in `.env`
+   only, never in the repo.
+4. On the droplet, add to `.env`: `HEALTHCHECK_PING_URL=https://hc-ping.com/<uuid>`,
+   then `docker compose up -d --wait` (compose passes it to the api).
+5. Within 5 minutes the check turns green on healthchecks.io.
+6. Integrations: email to the operator (on by default).
+
+### 3. Forced test (the P2-F2 / Sprint 5 exit gate)
+
+Do once after setup, then after any change to monitoring, at a quiet time:
+1. On the droplet: `docker compose stop api`.
+2. Expect an UptimeRobot email within about 10 minutes, and a Healthchecks.io
+   email within about 15 (period + grace).
+3. `docker compose start api`, then `docker compose up -d --wait`.
+4. Both send a "back up" email; the healthchecks.io check is green again.
+5. Record it below and in `docs/INCIDENT_PLAN.md` (Scenario 4 drill).
+
+| Date | What was tested | UptimeRobot email | Healthchecks email | By |
+|---|---|---|---|---|
+| — | Not yet set up | — | — | — |
+
 ## Backups
 
 Nightly and encrypted. Dumps are encrypted to an **age public key**; the
