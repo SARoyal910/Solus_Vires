@@ -185,7 +185,7 @@ One inherent limitation this fix cannot close, already true of zero-knowledge de
 ## Explicitly deferred — not built in this pass
 
 - Trusted-contact check-in/alerts (the next planned phase).
-- File/photo evidence upload — text-only for now; photo EXIF metadata can itself leak GPS location, which is a safety reason to defer, not just a scope cut.
+- ~~File/photo evidence upload~~ Done in Phase 2 (P2-E7), with the EXIF/GPS risk handled in the browser; see "Phase 2 additions" below.
 - A full disguised/skinned UI beyond generic page/nav labeling.
 - MFA, OAuth, passkeys.
 - Admin or partner-facing tooling; there is a single user role, no RBAC.
@@ -193,5 +193,29 @@ One inherent limitation this fix cannot close, already true of zero-knowledge de
 - A public abuser registry — deliberately rejected, not deferred (see "Why this exists" above).
 - ~~Rate limiting beyond the basic login lockout~~ Done in Phase 2: per-IP rate limits and a per-(IP, username) login slowdown replaced the account lockout. Still no CAPTCHA (deliberately, decision D7) or abuse alerting (P2-F3).
 - Backup/restore testing; a defined data retention/deletion policy beyond user-initiated delete.
-- A Notes PIN change/rotation flow — the data model supports it (the salt lives on `users`, not per-entry), but the re-encrypt-all-entries UI is a fast-follow, not MVP-blocking.
+- A Notes PIN change/rotation flow — the data model supports it (the salt lives on `users`, not per-entry), but the re-encrypt-everything UI is still not built. Since Phase 2 a PIN under 12 characters gets a notice on unlock that says so plainly. Note the salt and key-check are write-once on the server, so a change flow also needs a new API route that swaps salt, key-check, and every ciphertext in one transaction.
 - **Legal review.** Per the project's own architecture doc and README, this remains a hard prerequisite before any real-world use with actual survivors. This build is a technical milestone, not a launch-ready product.
+
+## Phase 2 additions (lane B, 2026-10-02)
+
+All of this runs in the browser on data already decrypted with the Notes PIN. The server still receives only ciphertext.
+
+**PIN flow (P2-A10).** Setup shows a live strength hint (`EvidenceCrypto.pinStrength`: too short / weak shapes like digits-only, runs, and common words / OK / strong for 20+ characters or three-plus words) and says the PIN is the only thing protecting the notes if the database is stolen. While the vault is empty, the no-recovery warning shows again and the first save (profile, plan, or entry) waits for a tick confirming the PIN is written down. Setup and unlock show an "Unlocking…" state with the button disabled while PBKDF2 runs. Locking now wipes decrypted content from the page, not just hides it.
+
+**Export and search (P2-E3).** "Print or save a copy" builds a copy from memory (`html/notes-export.js`): oldest entry first, each with the date its writer gave and when it was first saved, plus the private profile, the safety plan, and photos with their capture date. "Print / Save as PDF" uses the print stylesheet in `shared.css` (only the copy prints, page numbers in the margin where the browser supports them). "Download as text file" saves plain UTF-8 text (photos listed, not embedded). Preparing the copy may download photos that haven't been opened yet, still encrypted; after that, building, printing, and downloading make no network requests (`tests/web/export.test.mjs`, `tests/browser/notes_vault.mjs`). The copy is not encrypted, and the page says so above the buttons. There is no first-party PDF generator: a hand-written PDF writer would lose any character outside Latin-1, and the browser's print-to-PDF doesn't. Search filters entries by text, date, and photo name, in the browser.
+
+**Safety plan (P2-E8).** The Safety Planning page as a form in the vault (section layout in `NotesExport.PLAN`), saved as one encrypted JSON blob `{version, fields, checklist}` in the new `safety_plans` table (`GET/PUT/DELETE /api/evidence/safety-plan`), and included in exports. `safety.html` links to it.
+
+**Photos and screenshots (P2-E7).** `html/image-clean.js` redraws each image on a canvas and encodes a new JPEG (PNG stays PNG when it fits), which keeps only the pixels, then scans the result and refuses it if any EXIF, XMP, comment, or PNG text/eXIf/tIME block survived. Output is capped at 5 MB (quality, then size, steps down to fit); inputs over 40 MB are refused. The EXIF capture date is read before it is dropped and kept only in the encrypted description, because it can matter as evidence; GPS is never read. The image and its description (`{name, type, width, height, taken, size}`) are encrypted separately (`EvidenceCrypto.encryptBytes` / `encryptJSON`) and stored in `evidence_attachments` (`bytea`, tied to one of the owner's entries; deleting the entry or the account deletes them). API: `GET /api/evidence/attachments[?entry_id=]` (descriptions only), `POST /api/evidence/attachments` (base64 JSON; nginx allows 8 MB on that route only), `GET/DELETE /api/evidence/attachments/{id}`. Other accounts get 404. Limit: 200 photos per account. iPhone HEIC files decode only where the browser can (Safari usually converts on upload); elsewhere the page asks for a screenshot or JPEG. What is visible in a photo stays, and the page says so.
+
+**Tables (migration `0007`, after Lane A's `0006`):**
+
+```
+safety_plans          id, user_id (fk, unique), ciphertext, iv, created_at, updated_at
+evidence_attachments  id, user_id (fk), entry_id (fk evidence_entries), ciphertext (bytea), iv,
+                      meta_ciphertext, meta_iv, size_bytes, created_at
+```
+
+`size_bytes` is the one new plaintext fact: the server already sees each upload's size, and the count/size is needed for the per-account cap.
+
+**Other page behaviour.** On Android, choosing a photo opens the gallery and hides the tab; while a file picker is open the page leaves locking to the 4-minute idle timer instead of locking on hide.
