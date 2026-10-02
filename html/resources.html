@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Verified national hotlines, legal aid, tech safety, and population-specific support resources for domestic abuse survivors.">
   <link rel="stylesheet" href="/shared.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-180.png">
 </head>
 <body>
   <header>
@@ -30,6 +32,7 @@
         <h1>Real people, real hotlines, real help</h1>
         <p>Every organization below is a real, currently-operating national nonprofit or federal service. Most are free 24/7 — where one isn't, that's noted. For legal-aid detail, see <a href="/legal.html">Legal</a>. For mental-health treatment finding and grounding tools, see <a href="/recovery.html">Recovery</a>.</p>
       </div>
+      <p class="notice" id="offline-note" hidden></p>
       <div class="card state-finder" data-state-finder>
         <h2>Find help in your state</h2>
         <label>
@@ -158,6 +161,13 @@
           <p class="status">Call 1-800-677-1116</p>
           <a class="btn" href="https://eldercare.acl.gov/" target="_blank" rel="noopener">eldercare.acl.gov</a>
         </article>
+        <article class="card">
+          <h2>Adult Protective Services</h2>
+          <p>Each state's agency for older adults and adults with disabilities who are being abused, neglected, or exploited. NAPSA lists every state's contact. APS's job is to respond to reports, so you may want to talk to an advocate first.</p>
+          <a class="btn" href="https://www.napsa-now.org/help-in-your-area/" target="_blank" rel="noopener">napsa-now.org: find your state</a>
+          <!-- Checked 2026-10-02 at https://www.napsa-now.org/help-in-your-area/ (state picker; "Seniors or Adults
+               with Disabilities"; "recognize, report, and respond"). More for older adults: /safety.html#older-adults -->
+        </article>
       </div>
     </section>
 
@@ -178,12 +188,24 @@
         </article>
       </div>
     </section>
+    <div class="band" id="offline-panel" hidden>
+      <div class="safe-note">
+        <strong>No signal? Keep this page with you.</strong>
+        You can save Emergency and Resources, in English and Spanish, in this browser so they open without internet. Nothing is saved unless you press the button, and nothing is sent to us. While you're online you always get the current page. The copy stays until you remove it here or clear this site's data, and someone who looks through this browser's stored site data could see it.
+        <div class="actions">
+          <div id="offline-save"><button type="button" class="btn" id="offline-save-btn">Save on this device</button></div>
+          <div id="offline-remove" hidden><button type="button" class="btn" id="offline-remove-btn">Remove saved copy</button></div>
+        </div>
+        <p class="status" id="offline-status" aria-live="polite"></p>
+      </div>
+    </div>
   </main>
 
   <footer>Use a safer device if you are concerned someone monitors this one.
     <p class="footer-links"><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/help-someone.html">Help someone</a></p>
   </footer>
   <script src="/shared.js"></script>
+  <script src="/offline.js"></script>
   <script src="/local-help.js"></script>
 </body>
 </html>

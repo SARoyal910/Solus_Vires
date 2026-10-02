@@ -7,6 +7,8 @@
   <meta name="description" content="Líneas de ayuda y recursos con atención en español para personas que sufren abuso.">
   <link rel="alternate" hreflang="en" href="/resources.html">
   <link rel="stylesheet" href="/shared.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-180.png">
 </head>
 <!-- BORRADOR: traducción pendiente de revisión por una persona hablante nativa (PHASE2_PLAN P2-D8). -->
 <body>
@@ -28,6 +30,7 @@
         <h1>Recursos en español</h1>
         <p>Organizaciones reales y gratuitas con atención en español. Se verificó cada número en el sitio de la propia organización.</p>
       </div>
+      <p class="notice" id="offline-note" hidden></p>
       <div class="grid">
         <article class="card">
           <h2>Línea Nacional sobre la Violencia Doméstica</h2>
@@ -65,6 +68,17 @@
          988 en español (oprima 2, AYUDA al 988): https://988lifeline.org/interpretation-services/servicios-en-espanol/
          Crisis Text Line (HOLA al 741741, WhatsApp 14437877678): https://www.crisistextline.org/text-us/
          WomensLaw en español: https://www.womenslaw.org/es -->
+    <div class="band" id="offline-panel" hidden>
+      <div class="safe-note">
+        <strong>¿Sin señal? Guarde esta página.</strong>
+        Puede guardar Emergencia y Recursos, en español e inglés, en este navegador para abrirlas sin internet. No se guarda nada a menos que presione el botón, y no se nos envía nada. Mientras tenga conexión, siempre verá la página actual. La copia se queda hasta que la elimine aquí o borre los datos de este sitio, y alguien que revise los datos guardados de este navegador podría verla.
+        <div class="actions">
+          <div id="offline-save"><button type="button" class="btn" id="offline-save-btn">Guardar en este dispositivo</button></div>
+          <div id="offline-remove" hidden><button type="button" class="btn" id="offline-remove-btn">Eliminar la copia guardada</button></div>
+        </div>
+        <p class="status" id="offline-status" aria-live="polite"></p>
+      </div>
+    </div>
   </main>
 
   <footer>
@@ -72,5 +86,6 @@
     <p class="footer-links"><a href="/about.html" hreflang="en">Acerca de (en inglés)</a> · <a href="/privacy.html" hreflang="en">Privacidad (en inglés)</a></p>
   </footer>
   <script src="/shared.js"></script>
+  <script src="/offline.js"></script>
 </body>
 </html>

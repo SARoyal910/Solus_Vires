@@ -1,6 +1,6 @@
 # Runbook
 
-How to deploy, back up, and restore Solus Vires. Keep this current; the
+How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
 "last done" dates are the evidence that it works.
 
 ## Where things run
@@ -17,6 +17,9 @@ How to deploy, back up, and restore Solus Vires. Keep this current; the
 - **Phase 2 work** happens in the `~/Projects/solusvires-phase2` worktree
   (branch `phase2`). Preview with `scripts/preview.sh`
   (http://127.0.0.1:8099, throwaway database). Test with `scripts/test.sh`.
+  A second checkout can run its own at the same time:
+  `SV_TEST_PROJECT=sv-x scripts/test.sh`,
+  `SV_PREVIEW_PROJECT=sv-x-preview PREVIEW_PORT=8130 scripts/preview.sh`.
 
 ## Cloudflare settings the site depends on
 
@@ -31,6 +34,12 @@ How to deploy, back up, and restore Solus Vires. Keep this current; the
 
 ## Deploying
 
+Migrations are a separate, explicit step (P2-A15). The api container no
+longer runs `alembic upgrade head` when it starts, and production no longer
+bind-mounts `backend/app`: it runs exactly the code built into the image.
+`scripts/deploy.sh` does the droplet steps in the right order and stops at
+the first problem; the manual equivalent is listed under it.
+
 On the Mac:
 1. In the worktree: `scripts/test.sh` and `node --test tests/web/` are green.
 2. Bring the work into `main` and push:
@@ -39,22 +48,157 @@ On the Mac:
 
 On the droplet:
 3. `cd` to the checkout, `git status` (must be clean), `git pull origin main`.
-4. `docker compose up -d --build`. Rebuilds the api (applies migrations on
-   start, until P2-A15 makes that a separate step) and recreates nginx if its
-   mounts changed.
-5. From anywhere: `scripts/probe_headers.sh https://solusvires.com` shows
-   every line `ok`. If a change doesn't show, purge Cloudflare's cache
+4. Run the deploy:
+   ```
+   BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/deploy.sh https://solusvires.com
+   ```
+   It refuses to run with uncommitted changes or a source bind mount, takes
+   an encrypted backup, builds the api image, applies migrations
+   (`scripts/migrate.sh`), recreates whatever changed, waits until every
+   container is healthy, then runs the smoke test. `SKIP_BACKUP=1` skips the
+   backup; only use it when `git log` shows no new file in
+   `backend/migrations/versions/`.
+
+   The same thing by hand, in this order:
+   ```
+   scripts/backup.sh ~/solusvires-backups        # with BACKUP_AGE_RECIPIENT set
+   scripts/migrate.sh                            # builds the api image, then alembic upgrade head
+   docker compose up -d --wait                   # fails if any container isn't healthy
+   scripts/smoke.sh https://solusvires.com       # LAST step, see below
+   ```
+5. **Last step, every deploy:** `scripts/smoke.sh https://solusvires.com`
+   prints `SMOKE OK`. It is read-only (GET requests only) and checks the
+   security headers on every page (`scripts/probe_headers.sh`), that
+   `/api/health` answers and the API refuses an anonymous `/api/auth/me`,
+   that every page and asset in `html/` returns 200, that the private pages
+   are `no-store`, and that no third-party script (Cloudflare Web Analytics,
+   say) has been injected. It reads the page list from the checkout it runs
+   in, so run it from the commit you just deployed (the droplet, or the Mac
+   on the same commit). If a change doesn't show, purge Cloudflare's cache
    (Caching > Configuration > Purge Everything) before assuming it failed.
 6. Spot-check in a browser: home page, Notes unlock, check-in page.
 
-### First Phase 2 deploy (Sprints 0-1) — extra steps on the droplet
+**If you forget the migrate step:** the api container's healthcheck compares
+the database's migration version with the one the code expects. A mismatch
+makes it `unhealthy` within about a minute, `docker compose up -d --wait`
+exits with an error, and `docker compose ps` shows `(unhealthy)`. The reason
+is in `docker inspect --format '{{json .State.Health}}' solusvires_api`
+("database schema is [...], this code needs [...]: run scripts/migrate.sh").
+The public pages keep working (nginx doesn't wait for the api); fix it with
+`scripts/migrate.sh` then `docker compose up -d --wait`. Note that plain
+`docker compose up -d --build` (the old step) returns success without
+waiting; that's why the steps above use `--wait`.
+
+**Order matters.** Migrate *before* `up`: for a minute the old api runs on
+the new schema, which is fine because migrations here only add things. A
+migration that removes or renames something (e.g. 0008, dropping the old
+lockout columns) must ship one release after the code stops using it.
+
+**Rolling back:** check out the previous commit and run
+`docker compose up -d --build --wait`. Migrations can stay applied, since
+older code ignores added columns. One trap: commits from before P2-A15
+(`83be254` and earlier) still run `alembic upgrade head` when the api
+starts, and fail to start if the database is at a revision they've never
+heard of. Rolling back past P2-A15 after a newer migration has run means
+downgrading first, with the *new* image still in place:
+`docker compose run --rm api alembic downgrade <revision the old code knows>`.
+
+### Next deploy: what changes on the droplet (Phase 2 Sprints 2-5)
+
+Do this once, the first time `main` includes P2-A15 and the Lane A hardening
+work. It changes how deploys work, adds required secrets, and runs new
+migrations.
+
+**0. Before anything else, fix `.env` on the droplet.** In production the
+api now **refuses to start** if any of these three is empty, a placeholder
+(`replace-with-...`), or a known default (`solusvires`, `postgres`,
+`password`, `test-only`, `changeme`, empty). While it refuses, the API is
+down: no logins, no notes, and **no check-in alerts** go out until it's
+fixed. `scripts/deploy.sh` checks the same thing and stops before building.
+- `RECOVERY_CODE_PEPPER` (new, required; compose won't even start without
+  it). Generate once:
+  `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+  **Never change it after it's set**: every recovery code issued under the
+  old value would stop working, with no way to recover them. Keep a copy
+  with the backup key (password manager).
+- `CHECKIN_TOKEN_SECRET` must be a real random value (same command). If it
+  is already set on the droplet, **keep it**: changing it breaks every
+  invite and "manage alerts" link already emailed.
+- `POSTGRES_PASSWORD` must not be a default. If it is, changing `.env`
+  alone is not enough, because Postgres keeps the password it was created
+  with: first
+  `docker compose exec db psql -U solusvires -d solusvires -c "ALTER USER solusvires PASSWORD 'new-value';"`,
+  then put the same value in `.env`.
+- Optional, all off when empty: `HEALTHCHECK_PING_URL` (see "Monitoring"),
+  `OPERATOR_ALERT_EMAIL` (one email when one address is refused by the rate
+  limits more than `ABUSE_ALERT_THRESHOLD`, default 50, times in an hour;
+  the email never contains the IP, at most 5 a day),
+  `CONTACT_INBOX_EMAIL` and `CONTACT_RESPONSE_DAYS` (default 7; the contact
+  form sends to that inbox through Brevo and stores nothing; without an
+  inbox, or without `BREVO_API_KEY`, the form says plainly that it's off).
+  `CHECKIN_ALERT_LOOP_ENABLED` defaults to on in compose; leave it.
+
+Then:
+
+1. **Before pulling**, check for a local override:
+   `ls docker-compose.override.yml`. If it exists and mounts `backend/app`,
+   move it out of the checkout (`mv docker-compose.override.yml ~/`).
+   `deploy.sh` refuses to run while a source mount is configured.
+2. `git pull origin main`.
+3. Take a backup: `BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/backup.sh ~/solusvires-backups`.
+   This deploy has migrations, so this is not optional.
+4. `scripts/migrate.sh`. It prints `before:` and `after:`. Expect
+   `before: 0004 (head)` and an `after` ending in `(head)` at the newest
+   revision: **0005** (recovery codes stored as a peppered HMAC), **0006**
+   (check-in alert history and push health), and **0007** (encrypted
+   evidence attachments) if Lane B's work is in this deploy. All three only
+   add tables and columns.
+5. `docker compose up -d --wait`. Expect compose to **recreate all three
+   containers once**: the api (new command, no bind mount, healthcheck, new
+   settings), the database (it gained a healthcheck; the data lives in the
+   `db_data` volume, which is kept, so this is a few seconds' restart), and
+   nginx only if its config changed. `docker compose ps` should then show
+   `api ... (healthy)` and `db ... (healthy)`. If the api keeps restarting,
+   `docker compose logs --tail 20 api` shows a `refusing_to_start:` line
+   naming the setting (never its value): back to step 0.
+6. Check the source mount is gone:
+   `docker inspect --format '{{json .Mounts}}' solusvires_api` prints `[]`.
+7. `scripts/smoke.sh https://solusvires.com` prints `SMOKE OK`.
+8. Set up monitoring (below) if it isn't yet, and run its forced test.
+9. From the following deploy on, use `scripts/deploy.sh` (step 4 above).
+
+**Rolling back after this deploy:** migrations 0005 and 0006 can stay
+applied for older code, with one exception: recovery codes created after
+this deploy exist only as an HMAC, and code from before 0005 can't check
+them (recovery would fail for those accounts). Prefer fixing forward. If
+you must go back past it, run
+`docker compose run --rm api alembic downgrade 0004` with the new image
+first; that deletes the HMAC-only codes (those people keep their password
+but need new codes).
+
+If step 5 fails with "unhealthy" and no `refusing_to_start` line, run step 4
+again and look at `docker compose logs --tail 50 api`. To undo the deploy,
+see "Rolling back" above: don't mix the old `docker-compose.yml` with the new
+code (the new api needs `RECOVERY_CODE_PEPPER`, which the old file doesn't pass).
+
+**On the Mac**, the owner's local `.env` also needs `RECOVERY_CODE_PEPPER`
+(any value locally) or `docker compose` refuses to start, and the local stack
+loses its live-reload source mount the next time it is brought up. To keep editing without rebuilding:
+`cp docker-compose.override.example.yml docker-compose.override.yml`
+(gitignored). Run `scripts/migrate.sh` after pulling a new migration there
+too.
+
+### First Phase 2 deploy (Sprints 0-1), done 2026-09-26
+
+Kept for the record.
 
 - **Before step 4**, add invite codes to the droplet's `.env`, or new sign-ups
   are paused (existing accounts are unaffected):
   `BETA_SIGNUPS_ENABLED=false` and `BETA_INVITE_CODES=code-1,code-2`
   (one per person you invite).
 - **Take a backup first** (see below): migrations 0003 (Notes PIN key-check)
-  and 0004 (push endpoints per contact) run when the api starts.
+  and 0004 (push endpoints per contact) ran when the api started (the
+  pre-P2-A15 behaviour).
 - nginx gains a new mount (`nginx/snippets`); `up -d` recreates it.
 - nginx now requires Cloudflare's origin-pull client certificate (Global
   Authenticated Origin Pulls is on). After step 4, check that a direct
@@ -67,6 +211,68 @@ On the droplet:
 - Rollback: `git checkout 752b953 -- html nginx docker-compose.yml backend`
   then `docker compose up -d --build`. Migrations 0003/0004 can stay applied;
   the old code ignores them.
+
+## Monitoring
+
+Two free services watch the site from outside and email the owner,
+**Steven Royal**, when something stops (P2-F2). Neither sees any visitor or
+survivor data: one fetches a public health URL, the other only receives an
+empty "I'm alive" request from the droplet. Sign-ups are done by the owner;
+nothing here has been set up yet.
+
+### 1. Is the site up? UptimeRobot on /api/health
+
+Free plan: 50 monitors, checked every 5 minutes, email alerts, keyword
+checks ("good for hobby and non-profit projects", uptimerobot.com/pricing,
+checked 2026-10-02).
+
+1. Sign up at uptimerobot.com with the operator email address.
+2. Add a monitor: type **Keyword**, URL `https://solusvires.com/api/health`,
+   keyword `"ok"`, alert when the keyword **does not exist**, interval
+   5 minutes. That catches nginx up but the API down (a 502 page has no
+   `"ok"`), not just the droplet being off.
+3. Optionally a second **HTTP(s)** monitor on `https://solusvires.com/emergency.html`,
+   the page that matters most when everything else is broken.
+4. Alert contact: the operator's email. Don't make a public status page
+   (it would list the URLs being watched, for no benefit).
+5. If Cloudflare's Bot Fight Mode is ever turned on and the monitor starts
+   failing while the site works, allow UptimeRobot rather than turning the
+   monitor off.
+
+### 2. Are check-in alerts running? Healthchecks.io heartbeat
+
+The alert loop runs inside the api every `CHECKIN_ALERT_CHECK_SECONDS`
+(300 s). After each pass that held the alert lock and finished without an
+error, it requests `HEALTHCHECK_PING_URL` (empty means no ping; a failed
+ping is logged and never affects alerts). If the pings stop, the loop has stopped,
+even if `/api/health` still answers, and Healthchecks.io emails the owner.
+That is the case UptimeRobot can't see. Free "Hobbyist" plan: 20 checks
+(healthchecks.io/pricing, checked 2026-10-02).
+
+1. Sign up at healthchecks.io with the operator email address.
+2. Add a check named `alert-loop`. **Period: 5 minutes, Grace: 10 minutes**
+   (match the period to `CHECKIN_ALERT_CHECK_SECONDS` if you change it).
+3. Copy its ping URL (`https://hc-ping.com/<uuid>`). It's a secret in the
+   sense that anyone with it can send fake "alive" pings; keep it in `.env`
+   only, never in the repo.
+4. On the droplet, add to `.env`: `HEALTHCHECK_PING_URL=https://hc-ping.com/<uuid>`,
+   then `docker compose up -d --wait` (compose passes it to the api).
+5. Within 5 minutes the check turns green on healthchecks.io.
+6. Integrations: email to the operator (on by default).
+
+### 3. Forced test (the P2-F2 / Sprint 5 exit gate)
+
+Do once after setup, then after any change to monitoring, at a quiet time:
+1. On the droplet: `docker compose stop api`.
+2. Expect an UptimeRobot email within about 10 minutes, and a Healthchecks.io
+   email within about 15 (period + grace).
+3. `docker compose start api`, then `docker compose up -d --wait`.
+4. Both send a "back up" email; the healthchecks.io check is green again.
+5. Record it below and in `docs/INCIDENT_PLAN.md` (Scenario 4 drill).
+
+| Date | What was tested | UptimeRobot email | Healthchecks email | By |
+|---|---|---|---|---|
+| — | Not yet set up | — | — | — |
 
 ## Backups
 

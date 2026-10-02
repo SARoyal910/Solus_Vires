@@ -27,7 +27,8 @@ services:
     container_name: solusvires_api
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - PYTHONUNBUFFERED=1
       - APP_ENV=production
@@ -44,15 +45,63 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@example.com}
       - CHECKIN_TOKEN_SECRET=${CHECKIN_TOKEN_SECRET:-}
+      # Key for recovery-code HMACs. Required: set it once in .env and never
+      # change it, or every recovery code already issued stops working.
+      - RECOVERY_CODE_PEPPER=${RECOVERY_CODE_PEPPER:?Set RECOVERY_CODE_PEPPER}
       - BREVO_API_KEY=${BREVO_API_KEY:-}
       - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-no-reply@example.com}
       - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-Solus Vires}
       - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
       - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
+      - CHECKIN_ALERT_LOOP_ENABLED=${CHECKIN_ALERT_LOOP_ENABLED:-true}
+      # Contact form (D3): messages are emailed here through Brevo, never
+      # stored. Empty = the form is off and says so.
+      - CONTACT_INBOX_EMAIL=${CONTACT_INBOX_EMAIL:-}
+      - CONTACT_RESPONSE_DAYS=${CONTACT_RESPONSE_DAYS:-7}
+      # One email (never containing the IP) when one address is refused by the
+      # rate limits ABUSE_ALERT_THRESHOLD times in an hour. Empty = off.
+      - OPERATOR_ALERT_EMAIL=${OPERATOR_ALERT_EMAIL:-}
+      - ABUSE_ALERT_THRESHOLD=${ABUSE_ALERT_THRESHOLD:-50}
+      # Optional heartbeat (P2-F2): pinged after each alert pass, so a stopped
+      # alert loop pages someone. Empty = no ping. docs/RUNBOOK.md "Monitoring".
+      - HEALTHCHECK_PING_URL=${HEALTHCHECK_PING_URL:-}
     expose:
       - "8000"
-    volumes:
-      - ./backend/app:/backend/app
+    # Production runs the code baked into the image: no source bind mount
+    # (engineering review M8). For live-reload development, copy
+    # docker-compose.override.example.yml to docker-compose.override.yml
+    # (gitignored, so it can never reach the droplet).
+    #
+    # Healthy only when the API answers AND the database schema is exactly
+    # the one this image's migrations expect. Migrations are not run on start;
+    # a deploy that skips scripts/migrate.sh shows up as "unhealthy" here and
+    # makes `docker compose up -d --wait` fail, instead of quietly running new
+    # code against an old schema. The reason is in `docker inspect
+    # --format '{{json .State.Health}}' solusvires_api`.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import os, sys, urllib.request
+          from alembic.config import Config
+          from alembic.runtime.migration import MigrationContext
+          from alembic.script import ScriptDirectory
+          from sqlalchemy import create_engine
+          urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5)
+          expected = set(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.connect() as conn:
+              current = set(MigrationContext.configure(conn).get_current_heads())
+          engine.dispose()
+          if current != expected:
+              sys.exit(f"database schema is {sorted(current) or 'empty'}, this code needs {sorted(expected)}: run scripts/migrate.sh")
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+      start_interval: 2s
 
   db:
     logging: *default-logging
@@ -65,6 +114,13 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solusvires -d solusvires"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+      start_interval: 1s
     expose:
       - "5432"
     ports:

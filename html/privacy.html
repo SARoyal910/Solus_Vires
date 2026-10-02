@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Exactly what Solus Vires stores, what it cannot see, who else handles your data, and how to delete it.">
   <link rel="stylesheet" href="/shared.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-180.png">
 </head>
 <body>
   <header>
@@ -28,7 +30,7 @@
       <div class="section-head">
         <p class="eyebrow">Privacy statement</p>
         <h1>What we keep, and what we can't see</h1>
-        <p>Written to be read, not skimmed past. Last updated September 26, 2026. Solus Vires is run by Steven Royal through Omnia Royal LLC.</p>
+        <p>Written to be read, not skimmed past. Last updated October 2, 2026. Solus Vires is run by Steven Royal through Omnia Royal LLC.</p>
       </div>
       <div class="safe-note">
         <strong>The short version.</strong> Reading this site needs no account and leaves nothing with us. If you make an account, your notes are encrypted in your browser with a PIN we never receive, so we can't read them and can't give them to anyone. We use no ads, analytics, or trackers, and we don't log which pages people visit.
@@ -49,8 +51,10 @@
         </article>
         <article class="card">
           <ul>
-            <li>To stop abuse like password guessing, the server briefly holds IP addresses in memory. They're never written to disk and are gone whenever the server restarts.</li>
+            <li>To stop abuse like password guessing, the server briefly holds IP addresses in memory, with a count of requests it refused. They're never written to disk or put in any email, and are gone whenever the server restarts. If one address is refused many times in an hour, we get an email saying so, without the address.</li>
             <li>The Recovery page can remember which exercises you've done, only on your own device, and you can clear it there. The "Is this abuse?" check stores nothing at all.</li>
+            <li>If you write to us through the contact form, your message is emailed to our inbox through Brevo. It isn't stored on the site or written to its logs; it's kept in that inbox.</li>
+            <li>If you press "Save on this device" on the Emergency or Resources page, a copy of those pages is kept in your browser so they open without internet. Nothing is saved unless you press it, and the same button removes it. Someone who looks through your browser's stored site data could see it.</li>
           </ul>
         </article>
       </div>
@@ -66,7 +70,7 @@
           <h2>We store</h2>
           <ul>
             <li>Your username (we never ask for your name, email, or phone number)</li>
-            <li>Your password and recovery codes, only as one-way hashes</li>
+            <li>Your password, only as a one-way hash, and your recovery codes as one-way hashes that also need a secret key kept outside the database</li>
             <li>Your notes and private profile, only as encrypted data we can't read</li>
             <li>When your account was created and when you last logged in</li>
             <li>A login cookie while you're signed in (it expires after 14 days)</li>
@@ -77,7 +81,8 @@
           <ul>
             <li>Each trusted contact's nickname and email address, and whether they accepted</li>
             <li>Your schedule and when you last checked in</li>
-            <li>For contacts who turn on notifications, a technical address for their device (no name or location)</li>
+            <li>For contacts who turn on notifications, a technical address for their device (no name or location), when it last accepted an alert, and when it stopped working</li>
+            <li>A history of alerts sent for you: when, which kind (an alert or an "all clear"), and how many contacts, emails, and notifications. Counts only, not who or what was said. It's kept for 90 days, you can clear it at any time, and it's deleted with your account</li>
           </ul>
         </article>
       </div>
@@ -97,8 +102,9 @@
           <ul>
             <li>That an account with your username exists, and when it was created and last used</li>
             <li>Your trusted contacts' nicknames and email addresses</li>
-            <li>Your check-in schedule and times</li>
+            <li>Your check-in schedule and times, and the last 90 days of alert history (unless you cleared it)</li>
             <li>How many notes you have and when they were saved (not what they say)</li>
+            <li>Messages sent through the contact form, which are in our email inbox, not on the site</li>
           </ul>
         </article>
         <article class="card">
@@ -129,7 +135,7 @@
         </article>
         <article class="card">
           <h2>Brevo</h2>
-          <p>Sends check-in invitations and alerts by email. It receives the contact's email address and your username, which appears in the message.</p>
+          <p>Sends check-in invitations, alerts, and "all clear" messages by email. It receives the contact's email address and your username, which appears in the message. It also carries contact-form messages to our inbox, including whatever you write in them.</p>
         </article>
         <article class="card">
           <h2>Browser push services</h2>
@@ -142,21 +148,56 @@
       <div class="section-head">
         <p class="eyebrow">Your control</p>
         <h2>Deleting your data, and how long we keep it</h2>
-        <p>You can delete your account at any time from the Notes &amp; Check-ins page. That permanently removes your notes, profile, contacts, schedule, and logins from our database at once. Encrypted nightly backups are kept for up to 30 days, so deleted data disappears from those within 30 days. Trusted contacts can stop alerts at any time from the link in any email. We don't yet delete inactive accounts automatically; that policy is being written.</p>
+        <p>You can delete your account at any time from the Notes &amp; Check-ins page. That permanently removes your notes, profile, contacts, schedule, alert history, and logins from our database at once. Encrypted nightly backups are kept for up to 30 days, so deleted data disappears from those within 30 days. Trusted contacts can stop alerts at any time from the link in any email. We don't yet delete inactive accounts automatically; that policy is being written.</p>
       </div>
     </section>
 
-    <section class="band">
+    <section class="band" id="terms">
+      <div class="section-head">
+        <p class="eyebrow">Terms, in plain words</p>
+        <h2>What you can and can't rely on this site for</h2>
+        <p>By using the site you're agreeing to these. They're short on purpose.</p>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h2>It isn't an emergency service</h2>
+          <p>Nobody watches this site around the clock, and it can't send help. Check-in alerts are sent automatically by our server, so they depend on the server, email, and push notifications all working, and on your contacts seeing the alert and acting on it. An alert can be late or never arrive. If you're in danger, call 911.</p>
+        </article>
+        <article class="card">
+          <h2>It isn't legal or professional advice</h2>
+          <p>What's here is general information, not advice about your situation, and not a substitute for an advocate, lawyer, or counselor. Laws are different in every state. Every phone number and organization was checked against its own website before it was added, but they can change; the organization's own site is the final word.</p>
+        </article>
+        <article class="card">
+          <h2>It's still a prototype</h2>
+          <p>Accounts are invite-only. The site hasn't yet been reviewed by legal counsel or a domestic violence advocacy organization, and its security hasn't been independently audited. Features may change, and we may have to pause accounts or check-ins. There's no way to export your notes yet, so keep a copy of anything you can't afford to lose somewhere safe.</p>
+        </article>
+        <article class="card">
+          <h2>Use it for yourself, not on someone else</h2>
+          <p>Notes and check-ins are for your own safety. Don't use them to watch, track, or contact someone who hasn't agreed. Trusted contacts choose whether to accept and can stop at any time. Accounts used to harass someone may be closed. The site is free and offered as it is, without guarantees.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band alt">
       <div class="section-head">
         <p class="eyebrow">Not yet reviewed</p>
         <h2>An honest caveat</h2>
-        <p>This statement describes exactly how the site works today, but it hasn't yet been reviewed by a lawyer. It will be before the site opens to the public, and this page will say when it changes.</p>
+        <p>This statement and these terms describe exactly how the site works today, but they haven't yet been reviewed by a lawyer. They will be before the site opens to the public, and this page will say when they change.</p>
       </div>
     </section>
 
     <!-- Kept true by: nginx `access_log off` (nginx/conf.d/default.conf), uvicorn --no-access-log (backend/Dockerfile),
          in-memory-only rate limiter and login throttle (backend/app/core/), no-content logging (backend/app/services/),
-         30-dump backup rotation (scripts/backup.sh), 14-day SESSION_TTL_DAYS default. Update this page if any of those change. -->
+         30-dump backup rotation (scripts/backup.sh), opt-in-only offline copy of public pages (html/sw.js, html/offline.js), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
+         Terms (added 2026-10-02, P2-C2): alerts come only from the background loop in backend/app/services/checkin.py via
+         Web Push and Brevo, both best-effort (backend/app/core/notifications.py); sign-ups invite-only (BETA_SIGNUPS_ENABLED);
+         no notes export until P2-E3.
+         Lane A (P2-A13, C5, E5, F3), 2026-10-02: recovery codes as HMAC-SHA256 under RECOVERY_CODE_PEPPER (core/security.py
+         recovery_code_digest; older codes keep Argon2 until used); contact form emails CONTACT_INBOX_EMAIL via Brevo, nothing
+         stored or logged (services/contact.py, tests/test_contact.py); checkin_alert_log holds kind, number and counts only,
+         swept after 90 days (ALERT_LOG_RETENTION), clearable (DELETE /api/checkin/alerts), ondelete CASCADE;
+         push_subscriptions.last_push_ok_at and trusted_contacts.push_lost_at (migration 0006); abuse alerts count 429s per
+         address in memory and the email omits the address (core/abuse_alert.py). -->
   </main>
 
   <footer>

@@ -101,3 +101,16 @@ if ("IntersectionObserver" in window) {
     observer.observe(el);
   });
 }
+
+// ---------- Installable app (P2-E9) ----------
+// The site can be added to a home screen (manifest.json) and can keep an
+// offline copy of the crisis pages, but only when someone chooses to. Chrome
+// on Android otherwise pops up its own "Add to Home screen" banner by itself,
+// which on a shared phone draws attention and could be tapped by mistake.
+// This suppresses that banner; installing stays available from the browser's
+// own menu. We never show an install prompt of our own. The service worker is
+// registered only from checkin-invite.js (push) or offline.js (Save button),
+// never here.
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+});

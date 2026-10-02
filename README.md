@@ -2,13 +2,14 @@
 
 Solus Vires is a free, private safety and resource site for anyone being hurt by a partner or family member, whatever their gender, and for the people around them. Live at https://solusvires.com (not yet promoted; accounts are invite-only until legal and advocacy review).
 
-Where things stand: `docs/PROGRESS.md` (what's live), `docs/PHASE2_PLAN.md` (what's next), `docs/RUNBOOK.md` (deploy, backups, restore).
+Where things stand: `docs/PROGRESS.md` (what's live), `docs/PHASE2_PLAN.md` (what's next), `docs/RUNBOOK.md` (deploy, backups, restore, monitoring), `docs/THREAT_MODEL.md` (who the site defends against, and how), `docs/INCIDENT_PLAN.md` (what to do when something goes wrong).
 
 What's here:
 
 - Public pages that lead with what someone needs: in danger now, not sure if it's abuse (`/is-this-abuse.html`), or wanting to plan (`/safety.html`); plus pages for men, for friends and family, and for trusted contacts who get an alert
 - Verified directories of real hotlines, legal aid, and mental-health resources (`/resources.html`, `/legal.html`, `/recovery.html`), a find-help-in-your-state picker, and a Spanish crisis path (`/es/`)
 - `/about.html` and `/privacy.html`: who runs the site and exactly what it stores
+- A contact form (`/contact.html`) that emails the owner's inbox through Brevo and stores nothing, with a stated reply window and a plain "not for emergencies" line; it says it's off when no inbox is configured (`CONTACT_INBOX_EMAIL`)
 - A Recovery &amp; Wellness page (`/recovery.html`) with a trauma-informed recovery framework and interactive grounding tools (box breathing, 5-4-3-2-1) — fully client-side, no backend or paid service required
 - FastAPI backend (health, auth, encrypted notes, check-ins)
 - Accounts (`/account.html`) and a private, end-to-end encrypted notes/evidence log (`/log.html`) — see "Accounts and private notes" below
@@ -16,6 +17,7 @@ What's here:
 - Nginx reverse proxy configuration
 - Docker Compose stack, deployed to a DigitalOcean droplet behind Cloudflare
 - Safety-minded copy that avoids false emergency dispatch claims
+- An installable app, with an opt-in offline copy of the Emergency and Resources pages (English and Spanish) for when there's no signal
 
 ## Local Development
 
@@ -24,10 +26,12 @@ scripts/preview.sh        # the site + API with a throwaway database at http://1
 scripts/preview.sh down   # stop it and discard the database
 scripts/test.sh           # lint + backend tests (Python 3.12, throwaway Postgres)
 node --test tests/web/    # browser encryption tests
+node tests/browser/offline.mjs                    # offline copy + install, headless Chrome, against the preview
 scripts/probe_headers.sh https://solusvires.com   # security headers on every page
+scripts/smoke.sh https://solusvires.com           # headers + API + every page; read-only, the last step of every deploy
 ```
 
-All of these run in Docker under their own compose projects, so they never touch another stack's containers or data.
+All of these run in Docker under their own compose projects, so they never touch another stack's containers or data. To run a second checkout's at the same time, give it its own names: `SV_TEST_PROJECT=sv-x scripts/test.sh`, `SV_PREVIEW_PROJECT=sv-x-preview PREVIEW_PORT=8130 scripts/preview.sh`.
 
 Useful routes: `GET /api/health`, `GET /docs`.
 
@@ -42,8 +46,11 @@ cp .env.example .env
 Set a strong `POSTGRES_PASSWORD`, then run:
 
 ```bash
-docker compose up --build
+scripts/migrate.sh            # builds the api image and applies database migrations
+docker compose up -d --wait   # starts nginx, the api and Postgres; fails if any isn't healthy
 ```
+
+Migrations never run on container start: run `scripts/migrate.sh` after pulling a change that adds one. If you forget, the api shows `(unhealthy)` and `up --wait` says so. The image runs the code it was built with; for live reload while developing, `cp docker-compose.override.example.yml docker-compose.override.yml` (gitignored, so it never reaches production). On the droplet, deploy with `scripts/deploy.sh https://solusvires.com` (`docs/RUNBOOK.md`).
 
 If you want the check-in system's notifications to actually send (optional — everything else works without this), generate real keys and add them to `.env`:
 
@@ -65,7 +72,7 @@ Real limitations to know before relying on this:
 
 ## Check-ins and trusted contacts
 
-`/checkin.html` (linked from Notes & Check-ins) lets a survivor opt in to a check-in schedule and add trusted contacts by email. Miss a check-in past the grace period, and accepted contacts get an alert by Web Push (instant, free) and by email (Brevo's free tier, 300/day), repeated every 6 hours until the survivor checks in, with a link to `/if-you-get-an-alert.html`. Nothing is sent to anyone until they've explicitly accepted an invite, and they can stop receiving alerts at any time. See [docs/CHECKIN.md](docs/CHECKIN.md) for the full design, including why SMS isn't part of this (no free option exists) and how invite links work without storing any extra secret.
+`/checkin.html` (linked from Notes & Check-ins) lets a survivor opt in to a check-in schedule and add trusted contacts by email. Miss a check-in past the grace period, and every accepted contact gets an alert by Web Push (instant, free) **and** by email (Brevo's free tier, 300/day), every time: email is not just a fallback. Alerts are numbered and repeat every 6 hours until the survivor checks in, each with a link to `/if-you-get-an-alert.html`; when the survivor checks in (or turns check-ins off) after an alert, contacts get one message saying the alerts have stopped. The survivor can see an alert history (counts only, kept 90 days, clearable) and when each contact's push last worked or was lost. Nothing is sent to anyone until they've explicitly accepted an invite, and they can stop receiving alerts at any time; a contact who stopped can be invited again. See [docs/CHECKIN.md](docs/CHECKIN.md) for the full design, including why SMS isn't part of this (no free option exists) and how invite links work without storing any extra secret.
 
 ## Safety Boundaries
 
