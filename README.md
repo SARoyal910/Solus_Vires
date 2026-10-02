@@ -9,6 +9,7 @@ What's here:
 - Public pages that lead with what someone needs: in danger now, not sure if it's abuse (`/is-this-abuse.html`), or wanting to plan (`/safety.html`); plus pages for men, for friends and family, and for trusted contacts who get an alert
 - Verified directories of real hotlines, legal aid, and mental-health resources (`/resources.html`, `/legal.html`, `/recovery.html`), a find-help-in-your-state picker, and a Spanish crisis path (`/es/`)
 - `/about.html` and `/privacy.html`: who runs the site and exactly what it stores
+- A contact form (`/contact.html`) that emails the owner's inbox through Brevo and stores nothing, with a stated reply window and a plain "not for emergencies" line; it says it's off when no inbox is configured (`CONTACT_INBOX_EMAIL`)
 - A Recovery &amp; Wellness page (`/recovery.html`) with a trauma-informed recovery framework and interactive grounding tools (box breathing, 5-4-3-2-1) — fully client-side, no backend or paid service required
 - FastAPI backend (health, auth, encrypted notes, check-ins)
 - Accounts (`/account.html`) and a private, end-to-end encrypted notes/evidence log (`/log.html`) — see "Accounts and private notes" below
@@ -71,7 +72,7 @@ Real limitations to know before relying on this:
 
 ## Check-ins and trusted contacts
 
-`/checkin.html` (linked from Notes & Check-ins) lets a survivor opt in to a check-in schedule and add trusted contacts by email. Miss a check-in past the grace period, and accepted contacts get an alert by Web Push (instant, free) and by email (Brevo's free tier, 300/day), repeated every 6 hours until the survivor checks in, with a link to `/if-you-get-an-alert.html`. Nothing is sent to anyone until they've explicitly accepted an invite, and they can stop receiving alerts at any time. See [docs/CHECKIN.md](docs/CHECKIN.md) for the full design, including why SMS isn't part of this (no free option exists) and how invite links work without storing any extra secret.
+`/checkin.html` (linked from Notes & Check-ins) lets a survivor opt in to a check-in schedule and add trusted contacts by email. Miss a check-in past the grace period, and every accepted contact gets an alert by Web Push (instant, free) **and** by email (Brevo's free tier, 300/day), every time: email is not just a fallback. Alerts are numbered and repeat every 6 hours until the survivor checks in, each with a link to `/if-you-get-an-alert.html`; when the survivor checks in (or turns check-ins off) after an alert, contacts get one message saying the alerts have stopped. The survivor can see an alert history (counts only, kept 90 days, clearable) and when each contact's push last worked or was lost. Nothing is sent to anyone until they've explicitly accepted an invite, and they can stop receiving alerts at any time; a contact who stopped can be invited again. See [docs/CHECKIN.md](docs/CHECKIN.md) for the full design, including why SMS isn't part of this (no free option exists) and how invite links work without storing any extra secret.
 
 ## Safety Boundaries
 
