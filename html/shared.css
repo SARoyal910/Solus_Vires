@@ -124,7 +124,7 @@ header {
   top: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   gap: 1rem;
   align-items: center;
   padding: 0.75rem clamp(1rem, 4vw, 3rem);
@@ -226,6 +226,58 @@ nav a:hover::after {
 
 .quick-exit:active {
   transform: scale(0.96);
+}
+
+/* Quick Exit pressed: hide the page while the browser leaves (shared.js). */
+html.exiting body {
+  visibility: hidden;
+}
+
+/* "Or press Esc twice" beside Quick Exit, wide screens only (P2-E1). */
+.exit-hint {
+  max-width: 6.5rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: right;
+}
+
+kbd {
+  padding: 0 0.3em;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.3em;
+  font-family: var(--mono);
+  font-size: 0.95em;
+}
+
+/* Plain-view toggle: the last item in the nav, styled like a link. */
+.theme-toggle {
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: none;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.theme-toggle[aria-pressed="true"]::before {
+  content: "\2713\00a0";
+}
+
+.menu-note,
+header nav .theme-toggle {
+  display: none;
 }
 
 main {
@@ -880,6 +932,44 @@ footer a {
   color: var(--muted);
 }
 
+/* Mid-width screens: tighten the nav so it stays on one row next to the
+   brand, the Esc hint, and Quick Exit instead of wrapping to a second row. */
+@media (min-width: 921px) and (max-width: 1240px) {
+  header {
+    gap: 0.6rem;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  nav a {
+    padding: 0.45rem 0.42rem;
+    font-size: 0.86rem;
+  }
+
+  nav a::after {
+    left: 0.42rem;
+    right: 0.42rem;
+  }
+
+  .exit-hint {
+    max-width: 4.8rem;
+    font-size: 0.7rem;
+  }
+}
+
+/* Below 1100px the English nav needs the hint's room; the button's tooltip
+   and the phone menu note still carry it. */
+@media (min-width: 921px) and (max-width: 1099px) {
+  .exit-hint {
+    display: none;
+  }
+
+  .quick-exit {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.88rem;
+  }
+}
+
 /* Menu button: added by shared.js on small screens only (see header rules below). */
 .nav-toggle {
   display: none;
@@ -928,6 +1018,10 @@ footer a {
   .nav-toggle {
     grid-row: 1;
     grid-column: 2;
+  }
+
+  .exit-hint {
+    display: none;
   }
 
   .quick-exit {
@@ -1005,6 +1099,21 @@ footer a {
     background: var(--surface-2);
   }
 
+  .js-nav header nav .theme-toggle {
+    display: block;
+    padding: 0.8rem 0.9rem;
+    font-size: 1.02rem;
+  }
+
+  .js-nav header nav .menu-note {
+    display: block;
+    margin: 0.4rem 0.9rem 0;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+
   .grid,
   .grid.two {
     grid-template-columns: 1fr;
@@ -1073,4 +1182,179 @@ section[id] {
 
 .footer-links a {
   color: var(--muted);
+}
+
+/* ---------- Plain view (P2-E4) ---------- */
+/* Light, grey, no glow, no gradients, no motion. Turned on by the class on
+   <html>: set by /theme.js + shared.js from the visitor's own choice, or by
+   nginx on the no-JS /plain/ copy of each page. Quick Exit stays red. */
+
+html.theme-plain {
+  color-scheme: light;
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --surface-2: #efefec;
+  --ink: #1f2328;
+  --muted: #59606a;
+  --line: #dcdcd8;
+  --line-strong: #c3c4c0;
+
+  --primary: #44627d;
+  --primary-strong: #2f4b63;
+  --primary-soft: rgba(68, 98, 125, 0.14);
+  --accent: #59606a;
+  --accent-strong: #3d434b;
+  --accent-soft: rgba(89, 96, 106, 0.12);
+  --violet: #59606a;
+  --warm: #8a6a2f;
+  --warm-strong: #6b5122;
+  --warm-soft: rgba(138, 106, 47, 0.12);
+
+  --safe: #eef1f3;
+  --safe-ink: #2f4b63;
+  --warn: #f7f3ea;
+  --warn-ink: #4f3d17;
+  --danger: #b3261e;
+  --danger-strong: #8f1e18;
+  --danger-soft: rgba(179, 38, 30, 0.1);
+
+  --gradient-brand: linear-gradient(#44627d, #44627d);
+  --gradient-warm: linear-gradient(#8a6a2f, #8a6a2f);
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-lg: 0 6px 18px -10px rgba(0, 0, 0, 0.2);
+  --glow-primary: none;
+  --glow-accent: none;
+}
+
+html.theme-plain *,
+html.theme-plain *::before,
+html.theme-plain *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+html.theme-plain body::before,
+html.theme-plain .hero::after,
+html.theme-plain .hero-orb,
+html.theme-plain .hero-pulse,
+html.theme-plain .card::before,
+html.theme-plain .btn::after,
+html.theme-plain nav a::after {
+  display: none;
+}
+
+html.theme-plain ::selection {
+  background: #c9d6e2;
+  color: var(--ink);
+}
+
+html.theme-plain header {
+  background: rgba(246, 246, 244, 0.97);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.theme-plain .brand svg {
+  filter: none;
+}
+
+html.theme-plain .brand svg path:first-child {
+  fill: var(--muted);
+}
+
+html.theme-plain .quick-exit,
+html.theme-plain .btn.danger,
+html.theme-plain .btn.danger:hover {
+  color: #ffffff;
+  box-shadow: none;
+}
+
+html.theme-plain .hero {
+  color: var(--ink);
+  clip-path: none;
+}
+
+html.theme-plain .hero::before {
+  background: var(--bg);
+}
+
+html.theme-plain .hero .grad-text {
+  background: none;
+  color: inherit;
+}
+
+html.theme-plain .hero p.lede,
+html.theme-plain .trust-chip {
+  color: var(--muted);
+}
+
+html.theme-plain .trust-chip,
+html.theme-plain .eyebrow-badge {
+  background: var(--surface);
+  border-color: var(--line-strong);
+}
+
+html.theme-plain .eyebrow-badge,
+html.theme-plain .eyebrow {
+  color: var(--muted);
+}
+
+html.theme-plain .eyebrow-badge .dot {
+  box-shadow: none;
+}
+
+html.theme-plain .band.tint {
+  background: var(--surface-2);
+}
+
+html.theme-plain .card:hover,
+html.theme-plain .btn:hover,
+html.theme-plain .btn:active,
+html.theme-plain .quick-exit:active {
+  transform: none;
+}
+
+html.theme-plain .btn.primary,
+html.theme-plain .btn.primary:hover {
+  color: #ffffff;
+  background: var(--primary);
+}
+
+html.theme-plain .btn.on-dark,
+html.theme-plain .btn.on-dark:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
+html.theme-plain .notice {
+  border-color: #d9ceb4;
+  border-left-color: var(--warm);
+}
+
+html.theme-plain .safe-note,
+html.theme-plain .progress-summary li {
+  border-color: #cdd6de;
+}
+
+html.theme-plain .safe-note {
+  border-left-color: var(--primary);
+}
+
+html.theme-plain .breath-circle {
+  color: #ffffff;
+  background: var(--primary);
+}
+
+html.theme-plain .reveal-ready .card,
+html.theme-plain .reveal-ready .section-head {
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-width: 920px) {
+  html.theme-plain .js-nav header nav {
+    background: var(--surface);
+  }
 }
