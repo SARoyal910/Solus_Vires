@@ -31,6 +31,8 @@ class Settings:
     checkin_token_secret: str
     recovery_code_pepper: str
     trust_proxy_headers: bool
+    operator_alert_email: str
+    abuse_alert_threshold: int
     beta_signups_open: bool
     beta_invite_codes: tuple[str, ...]
 
@@ -80,6 +82,10 @@ def get_settings() -> Settings:
         # exist: every code issued under the old value would stop working.
         recovery_code_pepper=os.getenv("RECOVERY_CODE_PEPPER", ""),
         trust_proxy_headers=os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true",
+        # Where operator-only notices go (abuse alerts). Empty = off.
+        operator_alert_email=os.getenv("OPERATOR_ALERT_EMAIL", "").strip(),
+        # 429s from one address within an hour before the operator is emailed.
+        abuse_alert_threshold=int(os.getenv("ABUSE_ALERT_THRESHOLD", "50")),
         # Closed by default: until legal and advocacy review are done, new
         # accounts need an invite code (engineering review H6).
         beta_signups_open=os.getenv("BETA_SIGNUPS_ENABLED", "false").lower() == "true",

@@ -34,6 +34,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core import rate_limit  # noqa: E402
+from app.core.abuse_alert import abuse_monitor  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.db import Base, engine  # noqa: E402
 from app.core.login_throttle import login_throttle  # noqa: E402
@@ -68,6 +69,7 @@ def clean_state() -> Iterator[None]:
     for limiter in RateLimiter.instances:
         limiter.reset()
     login_throttle.reset()
+    abuse_monitor.reset()
 
 
 @pytest.fixture
