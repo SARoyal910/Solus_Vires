@@ -61,6 +61,7 @@ A reviewer account (invite code) can be provided for items 4 and the account pag
 **D. Trusted contacts' email addresses**
 11. A survivor enters a contact's email address; the site emails them an invitation, and stores the address until the survivor removes it, even if the contact never accepts. Is that acceptable? Should addresses of contacts who never respond, or who decline, be deleted after a set time?
 12. Alert and invitation emails include the survivor's chosen username. Any concern there?
+12a. The contact form emails each message, through Brevo, to the operator's own mailbox; the site stores nothing. How long should those emails be kept, and what should the operator do with a message that discloses abuse or a threat? (See also question 8.)
 
 **E. Content**
 13. The legal page explains protective orders, lease breaks, custody safety, and immigration remedies (VAWA, U visas) in plain words, labelled as information, not advice. Is the line between information and advice drawn in the right place? Anything inaccurate?
