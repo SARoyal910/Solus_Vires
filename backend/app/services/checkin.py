@@ -67,6 +67,10 @@ def _invite_email_html(username: str, accept_url: str, base_url: str) -> str:
     """.strip()
 
 
+def _repeat_phrase(repeat_hours: int) -> str:
+    return "every hour" if repeat_hours == 1 else f"every {repeat_hours} hours"
+
+
 def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hours: int) -> str:
     return f"""
     <p><strong>{username} hasn't checked in on Solus Vires as expected.</strong></p>
@@ -75,7 +79,7 @@ def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hour
     Consider reaching out to them the way you normally would. Don't contact the person they may
     be afraid of. If you believe they are in danger right now, call 911.</p>
     <p><a href="{base_url}/if-you-get-an-alert.html">What to do when you get this alert</a></p>
-    <p>You'll get this alert again every {repeat_hours} hours until {username} checks in.</p>
+    <p>You'll get this alert again {_repeat_phrase(repeat_hours)} until {username} checks in.</p>
     <p><a href="{manage_url}">Manage or stop these alerts</a></p>
     """.strip()
 
@@ -294,7 +298,10 @@ class CheckinService:
                     send_push(
                         sub,
                         title="Solus Vires check-in alert",
-                        body=f"{user.username} missed a scheduled check-in.",
+                        body=(
+                            f"{user.username} missed a scheduled check-in. This repeats "
+                            f"{_repeat_phrase(settings.checkin_alert_repeat_hours)} until they check in."
+                        ),
                         url=f"{settings.public_base_url}/if-you-get-an-alert.html",
                     )
                 except PushSubscriptionExpired:
@@ -302,6 +309,9 @@ class CheckinService:
                     db.query(PushSubscription).filter(PushSubscription.endpoint == sub.endpoint).delete()
                     db.commit()
 
+            # Email goes out on every alert, not only when push fails: push
+            # delivery is never confirmed, and a duplicate alert is safer than
+            # a missed one (Phase 2 decision D4).
             manage_url = f"{settings.public_base_url}/checkin-invite.html?token={make_contact_token(contact.id)}"
             send_email(
                 to_email=contact.contact_email,

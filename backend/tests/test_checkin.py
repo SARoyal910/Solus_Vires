@@ -126,9 +126,9 @@ def test_one_phone_can_be_the_contact_for_two_survivors(monkeypatch):
     _make_everyone_overdue()
     CheckinService().run_due_alerts_once()
 
-    assert sorted(body for _, body in sent) == [
-        "survivor_a missed a scheduled check-in.",
-        "survivor_b missed a scheduled check-in.",
+    assert sorted(body.split(".")[0] for _, body in sent) == [
+        "survivor_a missed a scheduled check-in",
+        "survivor_b missed a scheduled check-in",
     ]
 
 
@@ -223,3 +223,39 @@ def test_a_shortened_interval_never_puts_the_deadline_in_the_past():
 
     assert abs(_deadline(survivor) - datetime.now(timezone.utc)) < timedelta(minutes=1)
     assert response.json()["overdue"] is False  # the grace period still runs first
+
+
+def test_email_is_sent_even_when_push_succeeds(monkeypatch):
+    """D4: email is not a fallback; every alert goes by both channels."""
+    survivor, token = _accepted_contact("survivor_a")
+    survivor.post(f"/api/checkin/invite/{token}/subscribe", json=SUBSCRIPTION)
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 24, "grace_hours": 6})
+    _make_everyone_overdue()
+    pushes, emails = [], []
+    monkeypatch.setattr(checkin_service, "send_push", lambda sub, **kw: pushes.append(kw) or True)
+    monkeypatch.setattr(checkin_service, "send_email", lambda **kw: emails.append(kw) or True)
+
+    CheckinService().run_due_alerts_once()
+
+    assert len(pushes) == 1 and len(emails) == 1
+    assert "repeats every 6 hours until they check in" in pushes[0]["body"]
+
+
+def test_repeat_alerts_resend_email_after_the_repeat_window(monkeypatch):
+    survivor, _ = _accepted_contact("survivor_a")
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 24, "grace_hours": 6})
+    _make_everyone_overdue()
+    emails = []
+    monkeypatch.setattr(checkin_service, "send_email", lambda **kw: emails.append(kw) or True)
+
+    CheckinService().run_due_alerts_once()
+    CheckinService().run_due_alerts_once()  # inside the repeat window: nothing new
+    assert len(emails) == 1
+
+    with SessionLocal() as db:
+        db.query(CheckinSchedule).update(
+            {CheckinSchedule.last_alert_sent_at: datetime.now(timezone.utc) - timedelta(hours=7)}
+        )
+        db.commit()
+    CheckinService().run_due_alerts_once()
+    assert len(emails) == 2

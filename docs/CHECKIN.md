@@ -67,9 +67,13 @@ Public, token-authenticated (no account — this is the first place in the app w
 
 ## Background alert loop
 
-No new infrastructure or scheduler dependency: `backend/app/main.py` starts a single `asyncio` background task in the app's `lifespan` context that sleeps for `CHECKIN_ALERT_CHECK_SECONDS` (default 300s), then runs one pass over active schedules in a thread (`asyncio.to_thread`) so the synchronous DB/HTTP work in `CheckinService.run_due_alerts_once` doesn't block the event loop. A schedule is overdue once `next_deadline_at + grace_hours` has passed; alerts repeat at most every `CHECKIN_ALERT_REPEAT_HOURS` (default 6) until the survivor checks in again, rather than firing once or spamming continuously.
+No new infrastructure or scheduler dependency: `backend/app/main.py` starts a single `asyncio` background task in the app's `lifespan` context that sleeps for `CHECKIN_ALERT_CHECK_SECONDS` (default 300s), then runs one pass over active schedules in a thread (`asyncio.to_thread`) so the synchronous DB/HTTP work in `CheckinService.run_due_alerts_once` doesn't block the event loop. A pass that raises is logged and the loop carries on; it never silently stops.
 
-On each overdue pass, every accepted contact gets a push attempt to all their subscribed devices (a 404/410 response prunes that subscription as expired) plus an email, unconditionally — push is best-effort, email is the channel this system can actually promise.
+- **One pass at a time (Phase 2, P2-A8).** Each pass holds a Postgres advisory lock (`pg_try_advisory_lock`, on its own connection) for its whole run. A second process pointed at the same database, such as a local `uvicorn` next to the Docker `api`, skips the pass instead of sending duplicate alerts. `CHECKIN_ALERT_LOOP_ENABLED` turns the loop off entirely; it defaults to on only when `APP_ENV=production`.
+- **When an alert fires.** A schedule is overdue once `next_deadline_at + grace_hours` has passed. Alerts repeat at most every `CHECKIN_ALERT_REPEAT_HOURS` (default 6) until the survivor checks in again, rather than firing once or spamming continuously.
+- **Both channels, every time (decision D4).** Every accepted contact gets a push to each of their subscribed devices (a 404/410 response prunes that device for every contact it served) **and** an email, on the first alert and on every repeat. Email is not a fallback that only runs when push fails: the server can never confirm a push was seen, and a duplicate alert is safer than a missed one.
+- **The copy says what happens next.** Both the email and the push say the alert repeats every `CHECKIN_ALERT_REPEAT_HOURS` hours until the survivor checks in, and point to `/if-you-get-an-alert.html`.
+- **Saving the schedule moves the deadline (P2-A11).** While check-ins are on, every save recomputes `next_deadline_at = last_checkin_at + interval_hours`, so shortening the interval takes effect at once. If that time has already passed, the deadline is set to the moment of saving and the grace period runs from there.
 
 ## Frontend
 
