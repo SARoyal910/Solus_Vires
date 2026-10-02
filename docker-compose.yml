@@ -45,11 +45,23 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@example.com}
       - CHECKIN_TOKEN_SECRET=${CHECKIN_TOKEN_SECRET:-}
+      # Key for recovery-code HMACs. Required: set it once in .env and never
+      # change it, or every recovery code already issued stops working.
+      - RECOVERY_CODE_PEPPER=${RECOVERY_CODE_PEPPER:?Set RECOVERY_CODE_PEPPER}
       - BREVO_API_KEY=${BREVO_API_KEY:-}
       - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-no-reply@example.com}
       - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-Solus Vires}
       - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
       - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
+      - CHECKIN_ALERT_LOOP_ENABLED=${CHECKIN_ALERT_LOOP_ENABLED:-true}
+      # Contact form (D3): messages are emailed here through Brevo, never
+      # stored. Empty = the form is off and says so.
+      - CONTACT_INBOX_EMAIL=${CONTACT_INBOX_EMAIL:-}
+      - CONTACT_RESPONSE_DAYS=${CONTACT_RESPONSE_DAYS:-7}
+      # One email (never containing the IP) when one address is refused by the
+      # rate limits ABUSE_ALERT_THRESHOLD times in an hour. Empty = off.
+      - OPERATOR_ALERT_EMAIL=${OPERATOR_ALERT_EMAIL:-}
+      - ABUSE_ALERT_THRESHOLD=${ABUSE_ALERT_THRESHOLD:-50}
       # Optional heartbeat (P2-F2): pinged after each alert pass, so a stopped
       # alert loop pages someone. Empty = no ping. docs/RUNBOOK.md "Monitoring".
       - HEALTHCHECK_PING_URL=${HEALTHCHECK_PING_URL:-}

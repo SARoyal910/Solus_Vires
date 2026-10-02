@@ -53,6 +53,7 @@ jobs:
     env:
       POSTGRES_PASSWORD: ci-only
       CHECKIN_TOKEN_SECRET: ci-only
+      RECOVERY_CODE_PEPPER: ci-only
     steps:
       - uses: actions/checkout@v4
       - name: Self-signed cert in place of the Cloudflare origin cert
