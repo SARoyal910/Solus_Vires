@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import SessionLocal, engine
-from ..core.notifications import PushSubscriptionExpired, send_email, send_push
+from ..core.notifications import PushSubscriptionExpired, ping_healthcheck, send_email, send_push
 from ..core.security import sweep_expired_sessions
 from ..models.auth import User
 from ..models.checkin import CheckinAlertLog, CheckinSchedule, PushSubscription, TrustedContact
@@ -508,6 +508,9 @@ class CheckinService:
             finally:
                 lock_conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": ALERT_PASS_LOCK_KEY})
                 lock_conn.commit()
+        # Only a pass that ran to the end pings: a pass that raised, or a
+        # loop that stopped, shows up as a missed heartbeat (P2-F2).
+        ping_healthcheck()
         return True
 
     def _run_pass(self) -> None:

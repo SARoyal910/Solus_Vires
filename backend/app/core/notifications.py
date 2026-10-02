@@ -90,3 +90,21 @@ def send_email(to_email: str, to_name: str, subject: str, html_content: str) -> 
     except httpx.HTTPError as exc:
         logger.warning("email_send_failed", extra={"error": str(exc)})
         return False
+
+
+def ping_healthcheck() -> bool:
+    """Tells the heartbeat monitor an alert pass completed. Never raises.
+
+    Off when HEALTHCHECK_PING_URL is empty. A missed ping is what pages the
+    operator, so failing here only means the monitor may raise a false alarm;
+    it must never stop alerts going out.
+    """
+    url = get_settings().healthcheck_ping_url
+    if not url:
+        return False
+    try:
+        httpx.get(url, timeout=10.0).raise_for_status()
+        return True
+    except Exception as exc:
+        logger.warning("healthcheck_ping_failed", extra={"error": type(exc).__name__})
+        return False

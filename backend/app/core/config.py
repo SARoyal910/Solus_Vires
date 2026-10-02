@@ -27,6 +27,7 @@ class Settings:
     brevo_sender_name: str
     checkin_alert_check_seconds: int
     checkin_alert_loop_enabled: bool
+    healthcheck_ping_url: str
     checkin_alert_repeat_hours: int
     checkin_token_secret: str
     recovery_code_pepper: str
@@ -76,6 +77,9 @@ def get_settings() -> Settings:
         # shared database doesn't run a second loop (review M1). The advisory
         # lock in the alert pass makes a second loop harmless anyway.
         checkin_alert_loop_enabled=_flag("CHECKIN_ALERT_LOOP_ENABLED", environment == "production"),
+        # Heartbeat (e.g. a Healthchecks.io check URL) hit after every completed
+        # alert pass, so a stalled loop pages someone. Empty = off.
+        healthcheck_ping_url=os.getenv("HEALTHCHECK_PING_URL", "").strip(),
         checkin_alert_repeat_hours=int(os.getenv("CHECKIN_ALERT_REPEAT_HOURS", "6")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
         # Server-side key for recovery-code HMACs. Never change it once codes
