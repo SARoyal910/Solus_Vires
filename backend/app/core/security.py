@@ -95,7 +95,10 @@ def create_session(db: Session, response: Response, user: User) -> None:
         value=raw_token,
         httponly=True,
         secure=settings.session_cookie_secure,
-        samesite="strict",
+        # Lax, not Strict: a survivor following a link from an email or text
+        # must arrive logged in (review L1). Every state-changing route is a
+        # JSON POST/PUT/DELETE with no CORS, so Lax still keeps them same-site.
+        samesite="lax",
         max_age=settings.session_ttl_days * 24 * 60 * 60,
         path="/",
     )

@@ -6,7 +6,7 @@ from app.core.db import SessionLocal
 from app.core.security import sweep_expired_sessions
 from app.models.auth import Session as SessionModel
 from app.services.checkin import CheckinService
-from conftest import register_and_login
+from conftest import login, make_client, register, register_and_login
 
 
 def _only_session() -> SessionModel:
@@ -68,3 +68,12 @@ def test_alert_loop_pass_sweeps_expired_sessions():
 
     with SessionLocal() as db:
         assert db.query(SessionModel).count() == 0
+
+
+def test_session_cookie_is_samesite_lax_httponly():
+    """L1: Strict made people arriving from an email link look logged out."""
+    client = make_client()
+    register(client, "survivor_a")
+    cookie = login(client, "survivor_a").headers["set-cookie"].lower()
+    assert "samesite=lax" in cookie
+    assert "httponly" in cookie
