@@ -30,17 +30,39 @@
     autoLockTimer = setTimeout(lockNow, AUTO_LOCK_MS);
   }
 
+  // Everything decrypted lives here while unlocked, and only here and in
+  // the DOM; lockNow() empties both.
+  const state = {
+    profile: null,
+    plan: null,
+    entries: [], // { id, created_at, entry_date, text, unreadable }
+    photos: new Map(), // id -> { id, entry_id, created_at, size, meta, bytes, url }
+  };
+
   // Locking forgets the key and wipes every decrypted thing from the page,
   // so nothing readable is left in the DOM behind the PIN screen.
   function lockNow() {
     cryptoKey = null;
     pendingConfirmPin = null;
     if (autoLockTimer) clearTimeout(autoLockTimer);
+    for (const photo of state.photos.values()) if (photo.url) URL.revokeObjectURL(photo.url);
+    state.profile = null;
+    state.plan = null;
+    state.entries = [];
+    state.photos = new Map();
+    closeExport();
     document.getElementById("entries-list").textContent = "";
     document.getElementById("profile-form").reset();
+    document.getElementById("plan-form").reset();
+    document.getElementById("entry-form").reset();
+    document.getElementById("plan-details").open = false;
+    document.getElementById("entry-search").value = "";
+    document.getElementById("search-status").textContent = "";
     document.getElementById("short-pin-notice").hidden = true;
     firstSaveWarning.hidden = true;
-    for (const id of ["profile-status", "entry-status"]) document.getElementById(id).textContent = "";
+    for (const id of ["profile-status", "entry-status", "plan-status", "export-status"]) {
+      document.getElementById(id).textContent = "";
+    }
     showView("pinUnlock");
   }
 
@@ -66,8 +88,20 @@
     })
   );
 
+  // On Android, choosing a photo opens the gallery app and hides this tab.
+  // While a picker is open, leave locking to the idle timer instead.
+  let pickingFilesUntil = 0;
+  document.addEventListener("click", (event) => {
+    if (event.target.closest && event.target.closest("input[type=file], label.file-pick")) {
+      pickingFilesUntil = Date.now() + 2 * 60 * 1000;
+    }
+  }, true);
+  document.addEventListener("change", (event) => {
+    if (event.target.type === "file") pickingFilesUntil = 0;
+  }, true);
+
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && cryptoKey) lockNow();
+    if (document.hidden && cryptoKey && Date.now() > pickingFilesUntil) lockNow();
   });
 
   async function api(path, options = {}) {
@@ -83,63 +117,401 @@
     return res;
   }
 
-  async function loadEntries() {
-    const res = await api("/api/evidence/entries");
-    const entries = await res.json();
-    if (entries.length) setVaultEmpty(false);
-    const list = document.getElementById("entries-list");
-    list.textContent = "";
-    for (const entry of entries) {
-      let data;
-      try {
-        data = await EvidenceCrypto.decryptJSON(cryptoKey, entry.ciphertext, entry.iv);
-      } catch (e) {
-        data = null;
-      }
-      const card = document.createElement("article");
-      card.className = "card";
-      const title = document.createElement("h3");
-      title.textContent = data ? data.entry_date || "Undated" : "Unable to decrypt";
-      const body = document.createElement("p");
-      body.textContent = data ? data.text : "This entry could not be read with the current PIN.";
-      const del = document.createElement("button");
-      del.type = "button";
-      del.className = "btn danger";
-      del.textContent = "Delete";
-      del.addEventListener("click", async () => {
-        await api(`/api/evidence/entries/${entry.id}`, { method: "DELETE" });
-        await loadEntries();
-      });
-      card.appendChild(title);
-      card.appendChild(body);
-      card.appendChild(del);
-      list.appendChild(card);
+  // ---------- Loading and showing decrypted data ----------
+
+  async function tryDecrypt(blob) {
+    try {
+      return await EvidenceCrypto.decryptJSON(cryptoKey, blob.ciphertext, blob.iv);
+    } catch (e) {
+      return null;
     }
   }
 
   async function loadProfile() {
-    const res = await api("/api/evidence/case-profile");
-    const profile = await res.json();
+    const profile = await (await api("/api/evidence/case-profile")).json();
     if (!profile) return;
     setVaultEmpty(false);
-    try {
-      const data = await EvidenceCrypto.decryptJSON(cryptoKey, profile.ciphertext, profile.iv);
-      const form = document.getElementById("profile-form");
-      form.name.value = data.name || "";
-      form.relationship.value = data.relationship || "";
-      form.notes.value = data.notes || "";
-    } catch (e) {
-      // Wrong PIN relative to previously saved profile; leave fields blank.
+    const data = await tryDecrypt(profile);
+    if (!data) return; // can't happen past the key-check; leave fields blank
+    state.profile = data;
+    const form = document.getElementById("profile-form");
+    form.name.value = data.name || "";
+    form.relationship.value = data.relationship || "";
+    form.notes.value = data.notes || "";
+  }
+
+  // ---------- Safety plan (P2-E8) ----------
+
+  function buildPlanForm() {
+    const box = document.getElementById("plan-fields");
+    if (box.childElementCount) return;
+    for (const section of NotesExport.PLAN) {
+      const fieldset = document.createElement("fieldset");
+      const legend = document.createElement("legend");
+      legend.textContent = section.title;
+      fieldset.append(legend);
+      for (const item of section.checklist || []) {
+        const label = document.createElement("label");
+        label.className = "progress-check";
+        const box2 = document.createElement("input");
+        box2.type = "checkbox";
+        box2.name = `check:${item.key}`;
+        label.append(box2, " ", item.label);
+        fieldset.append(label);
+      }
+      for (const field of section.fields || []) {
+        const label = document.createElement("label");
+        label.append(field.label);
+        const input = document.createElement(field.short ? "input" : "textarea");
+        if (field.short) input.type = "text";
+        else input.rows = 3;
+        input.name = `field:${field.key}`;
+        input.autocomplete = "off";
+        label.append(input);
+        fieldset.append(label);
+      }
+      box.append(fieldset);
     }
+  }
+
+  function readPlanForm() {
+    const plan = { version: 1, fields: {}, checklist: {} };
+    for (const el of document.getElementById("plan-form").elements) {
+      if (!el.name) continue;
+      const [kind, key] = el.name.split(":");
+      if (kind === "field") plan.fields[key] = el.value;
+      if (kind === "check") plan.checklist[key] = el.checked;
+    }
+    return plan;
+  }
+
+  function fillPlanForm(plan) {
+    for (const el of document.getElementById("plan-form").elements) {
+      if (!el.name) continue;
+      const [kind, key] = el.name.split(":");
+      if (kind === "field") el.value = (plan.fields || {})[key] || "";
+      if (kind === "check") el.checked = !!(plan.checklist || {})[key];
+    }
+  }
+
+  async function loadPlan() {
+    const res = await api("/api/evidence/safety-plan");
+    const plan = res.ok ? await res.json() : null;
+    if (!plan) return;
+    setVaultEmpty(false);
+    const data = await tryDecrypt(plan);
+    if (!data) return;
+    state.plan = data;
+    fillPlanForm(data);
+  }
+
+  // ---------- Photos (P2-E7) ----------
+
+  function photoError(e, name) {
+    const code = e && e.code;
+    if (code === "not-image") return `"${name}" isn't a photo or screenshot this page can read.`;
+    if (code === "too-large") return `"${name}" is too large: over 40 MB, or it can't be made smaller than 5 MB.`;
+    if (code === "metadata-remains") return `"${name}" still had hidden details after cleaning, so it wasn't saved.`;
+    return `"${name}" couldn't be opened here. If it's an iPhone HEIC photo, try a screenshot of it, or share it as a JPEG.`;
+  }
+
+  // Cleans every file first, so a bad one stops the save before anything is written.
+  async function cleanAll(files, status) {
+    const cleaned = [];
+    for (let i = 0; i < files.length; i++) {
+      status.textContent = `Removing hidden details from photo ${i + 1} of ${files.length}…`;
+      try {
+        cleaned.push({ file: files[i], ...(await ImageClean.cleanImage(files[i])) });
+      } catch (e) {
+        throw new Error(photoError(e, files[i].name));
+      }
+    }
+    return cleaned;
+  }
+
+  // Encrypts and uploads cleaned photos for one entry. Returns how many failed.
+  async function uploadPhotos(entryId, cleaned, status) {
+    let failed = 0;
+    for (let i = 0; i < cleaned.length; i++) {
+      const c = cleaned[i];
+      status.textContent = `Encrypting and saving photo ${i + 1} of ${cleaned.length}…`;
+      try {
+        const meta = { name: c.file.name || "photo", type: c.type, width: c.width, height: c.height, taken: c.taken, size: c.bytes.length };
+        const body = await EvidenceCrypto.encryptBytes(cryptoKey, c.bytes);
+        const encMeta = await EvidenceCrypto.encryptJSON(cryptoKey, meta);
+        const res = await api("/api/evidence/attachments", {
+          method: "POST",
+          body: JSON.stringify({ entry_id: entryId, ciphertext: body.ciphertext, iv: body.iv, meta_ciphertext: encMeta.ciphertext, meta_iv: encMeta.iv }),
+        });
+        if (!res.ok) throw new Error("not saved");
+      } catch (e) {
+        failed++;
+      }
+    }
+    return failed;
+  }
+
+  async function loadPhotoList() {
+    const res = await api("/api/evidence/attachments");
+    if (!res.ok) return;
+    for (const info of await res.json()) {
+      const meta = await tryDecrypt({ ciphertext: info.meta_ciphertext, iv: info.meta_iv });
+      state.photos.set(info.id, {
+        id: info.id,
+        entry_id: info.entry_id,
+        iv: info.iv,
+        created_at: info.created_at,
+        size: info.size_bytes,
+        meta: meta || { name: "Unreadable photo" },
+        unreadable: !meta,
+        bytes: null,
+        url: "",
+      });
+    }
+  }
+
+  // Downloads and decrypts one photo's image (once).
+  async function loadPhoto(photo) {
+    if (photo.url || photo.unreadable) return photo;
+    const data = await (await api(`/api/evidence/attachments/${photo.id}`)).json();
+    photo.bytes = await EvidenceCrypto.decryptBytes(cryptoKey, data.ciphertext, data.iv);
+    photo.url = URL.createObjectURL(new Blob([photo.bytes], { type: photo.meta.type || "image/jpeg" }));
+    return photo;
+  }
+
+  function saveFile(name, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ---------- Entries ----------
+
+  async function loadEntries() {
+    const raw = await (await api("/api/evidence/entries")).json();
+    if (raw.length) setVaultEmpty(false);
+    const entries = [];
+    for (const entry of raw) {
+      const data = await tryDecrypt(entry);
+      entries.push({ id: entry.id, created_at: entry.created_at, entry_date: data ? data.entry_date : "", text: data ? data.text : "", unreadable: !data });
+    }
+    state.entries = entries;
+    renderEntries();
+  }
+
+  function photosFor(entryId) {
+    return [...state.photos.values()].filter((p) => p.entry_id === entryId);
+  }
+
+  function renderPhoto(photo, card) {
+    const row = document.createElement("div");
+    row.className = "photo-row";
+    const label = document.createElement("p");
+    label.className = "photo-label";
+    const m = photo.meta;
+    label.textContent = [m.name, m.taken ? `taken ${m.taken.replace("T", " ").slice(0, 16)}` : "", NotesExport.formatSize(photo.size)].filter(Boolean).join(" · ");
+    row.append(label);
+    const buttons = document.createElement("div");
+    buttons.className = "photo-actions";
+    const show = document.createElement("button");
+    show.type = "button";
+    show.className = "btn small";
+    show.textContent = "Show";
+    show.disabled = photo.unreadable;
+    show.addEventListener("click", async () => {
+      show.disabled = true;
+      show.textContent = "Opening…";
+      try {
+        await loadPhoto(photo);
+        const img = document.createElement("img");
+        img.className = "photo-preview";
+        img.src = photo.url;
+        img.alt = m.name;
+        row.append(img);
+        show.remove();
+        const save = document.createElement("button");
+        save.type = "button";
+        save.className = "btn small";
+        save.textContent = "Save a copy";
+        save.addEventListener("click", () => saveFile(m.name || "photo.jpg", new Blob([photo.bytes], { type: m.type })));
+        buttons.prepend(save);
+      } catch (e) {
+        show.textContent = "Couldn't open";
+      }
+    });
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "btn small";
+    del.textContent = "Delete photo";
+    del.addEventListener("click", async () => {
+      const res = await api(`/api/evidence/attachments/${photo.id}`, { method: "DELETE" });
+      if (!res.ok) return;
+      if (photo.url) URL.revokeObjectURL(photo.url);
+      state.photos.delete(photo.id);
+      renderEntries();
+    });
+    buttons.append(show, del);
+    row.append(buttons);
+    card.append(row);
+  }
+
+  function renderEntries() {
+    const list = document.getElementById("entries-list");
+    list.textContent = "";
+    for (const entry of state.entries) {
+      const card = document.createElement("article");
+      card.className = "card entry-card";
+      card.dataset.id = entry.id;
+      const title = document.createElement("h3");
+      title.textContent = entry.unreadable ? "Unable to decrypt" : entry.entry_date ? NotesExport.longDate(entry.entry_date) : "Undated";
+      const body = document.createElement("p");
+      body.className = "entry-text";
+      body.textContent = entry.unreadable ? "This entry could not be read with the current PIN." : entry.text;
+      card.append(title, body);
+      for (const photo of photosFor(entry.id)) renderPhoto(photo, card);
+
+      const actions = document.createElement("div");
+      actions.className = "photo-actions";
+      if (!entry.unreadable) {
+        const pick = document.createElement("label");
+        pick.className = "btn small file-pick";
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.multiple = true;
+        input.className = "visually-hidden";
+        pick.append("Add photos", input);
+        input.addEventListener("change", async () => {
+          const status = card.querySelector(".status") || card.appendChild(Object.assign(document.createElement("p"), { className: "status" }));
+          const files = [...input.files];
+          input.value = "";
+          if (!files.length) return;
+          try {
+            const cleaned = await cleanAll(files, status);
+            const failed = await uploadPhotos(entry.id, cleaned, status);
+            await reloadPhotos();
+            const fresh = document.querySelector(`.entry-card[data-id="${entry.id}"]`);
+            if (fresh) {
+              const note = document.createElement("p");
+              note.className = "status";
+              note.textContent = failed ? `${failed} photo(s) couldn't be saved. Try again.` : "Photos added.";
+              fresh.append(note);
+            }
+          } catch (e) {
+            status.textContent = e.message;
+          }
+        });
+        actions.append(pick);
+      }
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "btn danger small";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        await api(`/api/evidence/entries/${entry.id}`, { method: "DELETE" });
+        for (const p of photosFor(entry.id)) {
+          if (p.url) URL.revokeObjectURL(p.url);
+          state.photos.delete(p.id);
+        }
+        await loadEntries();
+      });
+      actions.append(del);
+      card.append(actions);
+      list.append(card);
+    }
+    applySearch();
+  }
+
+  async function reloadPhotos() {
+    const keep = state.photos;
+    state.photos = new Map();
+    await loadPhotoList();
+    for (const [id, p] of state.photos) {
+      const old = keep.get(id);
+      if (old && old.url) Object.assign(p, { bytes: old.bytes, url: old.url });
+    }
+    for (const [id, old] of keep) if (!state.photos.has(id) && old.url) URL.revokeObjectURL(old.url);
+    renderEntries();
+  }
+
+  // ---------- Search (client-side, over decrypted entries only) ----------
+
+  function applySearch() {
+    const query = document.getElementById("entry-search").value.trim().toLowerCase();
+    const status = document.getElementById("search-status");
+    let shown = 0;
+    for (const card of document.querySelectorAll("#entries-list .entry-card")) {
+      const entry = state.entries.find((e) => e.id === card.dataset.id);
+      const haystack = entry
+        ? [entry.text, entry.entry_date, NotesExport.longDate(entry.entry_date), ...photosFor(entry.id).map((p) => p.meta.name)].join(" ").toLowerCase()
+        : "";
+      const match = !query || haystack.includes(query);
+      card.hidden = !match;
+      if (match) shown++;
+    }
+    status.textContent = query ? `Showing ${shown} of ${state.entries.length} entries.` : "";
   }
 
   async function enterUnlocked(pinLength) {
     setVaultEmpty(true);
+    buildPlanForm();
     document.getElementById("short-pin-notice").hidden = pinLength >= EvidenceCrypto.PIN_MIN_LENGTH;
     showView("unlocked");
     scheduleAutoLock();
     await loadProfile();
+    await loadPlan();
+    await loadPhotoList();
     await loadEntries();
+  }
+
+  // ---------- Export: print / PDF / text (P2-E3) ----------
+  // Photos are downloaded (still encrypted) and decrypted first. After that,
+  // building, printing, and saving the copy make no network requests at all.
+
+  let exportModel = null;
+
+  function closeExport() {
+    document.getElementById("export-view").hidden = true;
+    document.getElementById("vault-main").hidden = false;
+    document.body.classList.remove("export-open");
+    document.getElementById("export-doc").textContent = "";
+    exportModel = null;
+  }
+
+  async function openExport() {
+    const status = document.getElementById("export-status");
+    const opener = document.getElementById("export-open-btn");
+    opener.disabled = true;
+    try {
+      const photos = [...state.photos.values()].filter((p) => !p.url && !p.unreadable);
+      for (let i = 0; i < photos.length; i++) {
+        opener.textContent = `Preparing photos (${i + 1} of ${photos.length})…`;
+        await loadPhoto(photos[i]).catch(() => {});
+      }
+      exportModel = NotesExport.buildModel({
+        profile: state.profile,
+        plan: state.plan,
+        entries: state.entries.map((e) => ({
+          ...e,
+          photos: photosFor(e.id).map((p) => ({ ...p.meta, created_at: p.created_at, size: p.size, url: p.url })),
+        })),
+        exportedAt: new Date(),
+      });
+      NotesExport.renderInto(document.getElementById("export-doc"), exportModel);
+      document.getElementById("vault-main").hidden = true;
+      document.getElementById("export-view").hidden = false;
+      document.body.classList.add("export-open");
+      status.textContent = "";
+      document.getElementById("export-title").scrollIntoView({ block: "start" });
+    } finally {
+      opener.disabled = false;
+      opener.textContent = "Print or save a copy";
+    }
   }
 
   // Deriving the key takes 600,000 PBKDF2 rounds: a second or more on older
@@ -317,18 +689,33 @@
     const status = document.getElementById("profile-status");
     const form = event.target;
     if (!readyForFirstSave(status)) return;
-    const blob = await EvidenceCrypto.encryptJSON(cryptoKey, {
-      name: form.name.value,
-      relationship: form.relationship.value,
-      notes: form.notes.value,
-    });
+    const profile = { name: form.name.value, relationship: form.relationship.value, notes: form.notes.value };
+    const blob = await EvidenceCrypto.encryptJSON(cryptoKey, profile);
     try {
       const res = await api("/api/evidence/case-profile", { method: "PUT", body: JSON.stringify(blob) });
       if (!res.ok) throw new Error("not saved");
+      state.profile = profile;
       setVaultEmpty(false);
       status.textContent = "Saved.";
     } catch (e) {
       status.textContent = "Unable to save right now.";
+    }
+  });
+
+  document.getElementById("plan-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const status = document.getElementById("plan-status");
+    if (!readyForFirstSave(status)) return;
+    const plan = readPlanForm();
+    const blob = await EvidenceCrypto.encryptJSON(cryptoKey, plan);
+    try {
+      const res = await api("/api/evidence/safety-plan", { method: "PUT", body: JSON.stringify(blob) });
+      if (!res.ok) throw new Error("not saved");
+      state.plan = plan;
+      setVaultEmpty(false);
+      status.textContent = "Plan saved.";
+    } catch (e) {
+      status.textContent = "Unable to save your plan right now.";
     }
   });
 
@@ -337,23 +724,51 @@
     const status = document.getElementById("entry-status");
     const form = event.target;
     if (!readyForFirstSave(status)) return;
-    const blob = await EvidenceCrypto.encryptJSON(cryptoKey, {
-      entry_date: form.entry_date.value,
-      text: form.text.value,
-    });
+    const submit = form.querySelector("button[type=submit]");
+    submit.disabled = true;
     try {
-      const res = await api("/api/evidence/entries", { method: "POST", body: JSON.stringify(blob) });
-      if (!res.ok) throw new Error("not saved");
+      let cleaned = [];
+      try {
+        cleaned = await cleanAll([...form.photos.files], status);
+      } catch (e) {
+        status.textContent = e.message + " Nothing was saved.";
+        return;
+      }
+      status.textContent = "Saving…";
+      const blob = await EvidenceCrypto.encryptJSON(cryptoKey, { entry_date: form.entry_date.value, text: form.text.value });
+      let entryId;
+      try {
+        const res = await api("/api/evidence/entries", { method: "POST", body: JSON.stringify(blob) });
+        if (!res.ok) throw new Error("not saved");
+        entryId = (await res.json()).id;
+      } catch (e) {
+        status.textContent = "Unable to add this entry right now.";
+        return;
+      }
       setVaultEmpty(false);
+      const failed = cleaned.length ? await uploadPhotos(entryId, cleaned, status) : 0;
       form.reset();
-      status.textContent = "Added.";
+      await reloadPhotos();
       await loadEntries();
-    } catch (e) {
-      status.textContent = "Unable to add this entry right now.";
+      status.textContent = failed
+        ? `Entry added, but ${failed} photo${failed === 1 ? "" : "s"} couldn't be saved. You can add ${failed === 1 ? "it" : "them"} to the entry below.`
+        : cleaned.length ? `Added, with ${cleaned.length} photo${cleaned.length === 1 ? "" : "s"}.` : "Added.";
+    } finally {
+      submit.disabled = false;
     }
   });
 
+  document.getElementById("entry-search").addEventListener("input", applySearch);
   document.getElementById("lock-now-btn").addEventListener("click", lockNow);
+  document.getElementById("export-open-btn").addEventListener("click", openExport);
+  document.getElementById("export-close-btn").addEventListener("click", closeExport);
+  document.getElementById("export-print-btn").addEventListener("click", () => window.print());
+  document.getElementById("export-text-btn").addEventListener("click", () => {
+    if (!exportModel) return;
+    const day = new Date().toISOString().slice(0, 10);
+    saveFile(`notes-${day}.txt`, new Blob([NotesExport.toText(exportModel)], { type: "text/plain;charset=utf-8" }));
+    document.getElementById("export-status").textContent = "Text file saved to your downloads. It is not encrypted.";
+  });
 
   async function init() {
     try {

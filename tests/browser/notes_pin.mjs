@@ -1,11 +1,12 @@
 // Drives the Notes PIN flows in headless Chrome against scripts/preview.sh.
 //   (cd tests/browser && npm install puppeteer-core@23) && node tests/browser/notes_pin.mjs
-// SV_BASE_URL points it at another local preview (default http://127.0.0.1:8099).
+// PREVIEW_URL points it at another local preview (default http://127.0.0.1:8099);
+// CHROME overrides the Chrome path, and CI=1 adds --no-sandbox (as offline.mjs).
 // Uses throwaway accounts on the local preview only; never point it at production.
 import puppeteer from "puppeteer-core";
 import crypto from "node:crypto";
 
-const BASE = process.env.SV_BASE_URL || "http://127.0.0.1:8099";
+const BASE = process.env.PREVIEW_URL || "http://127.0.0.1:8099";
 const rnd = () => crypto.randomBytes(4).toString("hex");
 const PASSWORD = "pw-" + crypto.randomBytes(8).toString("hex");
 const PIN = "pin-" + crypto.randomBytes(8).toString("hex");
@@ -14,8 +15,9 @@ const results = [];
 const check = (name, ok, extra = "") => { results.push(ok); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  (" + extra + ")" : ""}`); };
 
 const browser = await puppeteer.launch({
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  executablePath: process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
+  args: process.env.CI ? ["--no-sandbox"] : [],
 });
 
 async function freshUser() {

@@ -1364,3 +1364,167 @@ html.theme-plain .reveal-ready .section-head {
     background: var(--surface);
   }
 }
+
+/* ---------- Notes vault: plan, photos, search, export (log.html) ---------- */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.btn.small {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.86rem;
+}
+
+.plan-form fieldset {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.plan-form legend {
+  padding: 0 0.4rem;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.plan-form .progress-check {
+  margin-top: 0;
+  color: var(--ink);
+}
+
+#plan-details summary {
+  cursor: pointer;
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+#plan-details[open] summary {
+  margin-bottom: 1rem;
+}
+
+.search-label {
+  max-width: 28rem;
+  margin-bottom: 0.4rem;
+}
+
+.entry-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.photo-row {
+  margin: 0.8rem 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.photo-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.photo-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  margin-top: 0.6rem;
+  border-radius: var(--radius-sm);
+}
+
+.export-doc {
+  margin-top: 1.5rem;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  border-radius: var(--radius);
+  color: #111111;
+  background: #ffffff;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.5;
+}
+
+.export-doc h1,
+.export-doc h2,
+.export-doc h3 {
+  color: #111111;
+  letter-spacing: 0;
+}
+
+.export-doc h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
+.export-doc h2 { font-size: 1.25rem; margin: 1.6rem 0 0.6rem; border-bottom: 1px solid #999999; }
+.export-doc h3 { font-size: 1.05rem; margin: 1.2rem 0 0.2rem; }
+.export-doc .export-meta { margin: 0 0 0.5rem; color: #444444; font-size: 0.9rem; }
+.export-doc .export-note { color: #333333; font-size: 0.9rem; }
+.export-doc .export-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.export-doc dt { font-weight: 700; margin-top: 0.5rem; }
+.export-doc dd { margin: 0 0 0 1rem; white-space: pre-wrap; }
+.export-doc figure { margin: 0.8rem 0; }
+.export-doc img { max-width: 100%; max-height: 22cm; border: 1px solid #cccccc; }
+.export-doc figcaption { color: #444444; font-size: 0.85rem; }
+.export-entry { break-inside: avoid-page; }
+
+@page {
+  margin: 16mm 16mm 18mm;
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 9pt;
+  }
+}
+
+@media print {
+  header,
+  footer,
+  .quick-exit,
+  .nav-toggle,
+  .exit-hint {
+    display: none !important;
+  }
+
+  body,
+  main,
+  .band {
+    color: #000000;
+    background: #ffffff !important;
+  }
+
+  body::before {
+    display: none;
+  }
+
+  .band {
+    padding: 0;
+  }
+
+  /* Printing the notes page prints only the export copy. */
+  body.export-open #unlocked-view > :not(#export-view),
+  body.export-open .export-controls {
+    display: none !important;
+  }
+
+  .export-doc {
+    margin: 0;
+    padding: 0;
+  }
+
+  .reveal-ready .card,
+  .reveal-ready .section-head {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

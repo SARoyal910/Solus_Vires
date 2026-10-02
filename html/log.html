@@ -80,6 +80,7 @@
       </div>
       <div class="actions">
         <button type="button" class="btn" id="lock-now-btn">Lock now</button>
+        <button type="button" class="btn" id="export-open-btn">Print or save a copy</button>
       </div>
 
       <div class="notice" id="short-pin-notice" hidden>
@@ -94,47 +95,87 @@
         </label>
       </div>
 
-      <article class="card">
-        <h2>Private profile</h2>
-        <p>Optional. Kept only for your own reference, never shown to anyone else, never public or searchable.</p>
-        <form id="profile-form">
-          <label>
-            Name or names used
-            <input type="text" name="name" autocomplete="off">
-          </label>
-          <label>
-            Relationship
-            <input type="text" name="relationship" autocomplete="off">
-          </label>
-          <label>
-            Notes
-            <textarea name="notes" rows="4" autocomplete="off"></textarea>
-          </label>
-          <button type="submit" class="btn primary">Save profile</button>
-          <p id="profile-status" class="status" aria-live="polite"></p>
-        </form>
-      </article>
+      <div id="vault-main">
+        <article class="card">
+          <h2>Private profile</h2>
+          <p>Optional. Kept only for your own reference, never shown to anyone else, never public or searchable.</p>
+          <form id="profile-form">
+            <label>
+              Name or names used
+              <input type="text" name="name" autocomplete="off">
+            </label>
+            <label>
+              Relationship
+              <input type="text" name="relationship" autocomplete="off">
+            </label>
+            <label>
+              Notes
+              <textarea name="notes" rows="4" autocomplete="off"></textarea>
+            </label>
+            <button type="submit" class="btn primary">Save profile</button>
+            <p id="profile-status" class="status" aria-live="polite"></p>
+          </form>
+        </article>
 
-      <article class="card">
-        <h2>Add an entry</h2>
-        <form id="entry-form">
-          <label>
-            Date
-            <input type="date" name="entry_date" required>
-          </label>
-          <label>
-            What happened
-            <textarea name="text" rows="5" required autocomplete="off"></textarea>
-          </label>
-          <button type="submit" class="btn primary">Add entry</button>
-          <p id="entry-status" class="status" aria-live="polite"></p>
-        </form>
-      </article>
+        <article class="card" id="plan">
+          <h2>My safety plan</h2>
+          <p>A private, fillable version of the <a href="/safety.html">Safety Planning</a> page. Fill in what fits and skip the rest. It is encrypted like your notes, and included when you print or save a copy.</p>
+          <details id="plan-details">
+            <summary>Open my plan</summary>
+            <form id="plan-form" class="plan-form">
+              <div id="plan-fields"></div>
+              <button type="submit" class="btn primary">Save plan</button>
+              <p id="plan-status" class="status" aria-live="polite"></p>
+            </form>
+          </details>
+        </article>
 
-      <div class="section-head">
-        <h2>Entries</h2>
+        <article class="card">
+          <h2>Add an entry</h2>
+          <form id="entry-form">
+            <label>
+              Date
+              <input type="date" name="entry_date" required>
+            </label>
+            <label>
+              What happened
+              <textarea name="text" rows="5" required autocomplete="off"></textarea>
+            </label>
+            <label>
+              Photos or screenshots (optional)
+              <input type="file" name="photos" accept="image/*" multiple>
+            </label>
+            <p class="hint">Before a photo is encrypted, this page redraws it to remove hidden details such as the location it was taken. Anything visible in the picture stays. Up to 5 MB each after cleaning.</p>
+            <button type="submit" class="btn primary">Add entry</button>
+            <p id="entry-status" class="status" aria-live="polite"></p>
+          </form>
+        </article>
+
+        <div class="section-head">
+          <h2>Entries</h2>
+        </div>
+        <label class="search-label">
+          Search your notes
+          <input type="search" id="entry-search" autocomplete="off">
+        </label>
+        <p id="search-status" class="hint" aria-live="polite"></p>
+        <div id="entries-list" class="grid two"></div>
       </div>
-      <div id="entries-list" class="grid two"></div>
+
+      <section id="export-view" hidden aria-labelledby="export-title">
+        <div class="export-controls">
+          <h2 id="export-title">Print or save a copy</h2>
+          <div class="notice">This copy is not encrypted. A printout, a saved PDF, or a downloaded file can be read by anyone who finds it, and may sync to cloud storage. Keep it somewhere safe, or give it straight to your advocate or lawyer.</div>
+          <p class="hint">To make a PDF, choose Print, then Save as PDF where your device offers it. On iPhone, pinch outward on the print preview, then use Share to save it. The text file leaves out photos.</p>
+          <div class="actions">
+            <button type="button" class="btn primary" id="export-print-btn">Print / Save as PDF</button>
+            <button type="button" class="btn" id="export-text-btn">Download as text file</button>
+            <button type="button" class="btn" id="export-close-btn">Close</button>
+          </div>
+          <p id="export-status" class="status" aria-live="polite"></p>
+        </div>
+        <div id="export-doc" class="export-doc"></div>
+      </section>
     </section>
   </main>
 
@@ -144,6 +185,8 @@
   </footer>
   <script src="/shared.js"></script>
   <script src="/evidence-crypto.js"></script>
+  <script src="/image-clean.js"></script>
+  <script src="/notes-export.js"></script>
   <script src="/log.js"></script>
 </body>
 </html>

@@ -64,3 +64,11 @@ test("PIN strength: several unrelated words or 20+ characters is strong", () => 
   assert.equal(C.pinStrength("Xq7#mP2!vR9zL4@nK8$w").level, "strong");
   assert.equal(C.pinStrength("summer-garden").level, "ok");
 });
+
+test("photo bytes round-trip, and a wrong PIN can't read them (P2-E7)", async () => {
+  const bytes = new Uint8Array(200000).map((_, i) => (i * 7) % 256);
+  const blob = await C.encryptBytes(rightKey, bytes);
+  assert.deepEqual(await C.decryptBytes(rightKey, blob.ciphertext, blob.iv), bytes);
+  await assert.rejects(C.decryptBytes(wrongKey, blob.ciphertext, blob.iv));
+  assert.equal(Buffer.from(blob.ciphertext, "base64").length, bytes.length + 16);
+});

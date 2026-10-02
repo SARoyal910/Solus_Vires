@@ -4,9 +4,12 @@
 const PBKDF2_ITERATIONS = 600000;
 
 function bufToBase64(buf) {
-  const bytes = new Uint8Array(buf);
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  // In slices: photos are megabytes, and one character at a time is slow.
   let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
   return btoa(binary);
 }
 
@@ -59,6 +62,18 @@ async function decryptJSON(key, ciphertextBase64, ivBase64) {
   const plaintextBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertextBuf);
   const dec = new TextDecoder();
   return JSON.parse(dec.decode(plaintextBuf));
+}
+
+// Raw bytes (photos, P2-E7): same key and cipher as the notes.
+async function encryptBytes(key, bytes) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertextBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes);
+  return { ciphertext: bufToBase64(ciphertextBuf), iv: bufToBase64(iv) };
+}
+
+async function decryptBytes(key, ciphertextBase64, ivBase64) {
+  const iv = new Uint8Array(base64ToBuf(ivBase64));
+  return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, base64ToBuf(ciphertextBase64)));
 }
 
 // A fixed value encrypted under the PIN at setup. Decrypting it is how the
@@ -116,6 +131,8 @@ window.EvidenceCrypto = {
   deriveKey,
   encryptJSON,
   decryptJSON,
+  encryptBytes,
+  decryptBytes,
   makeKeyCheck,
   keyMatchesCheck,
   pinStrength,

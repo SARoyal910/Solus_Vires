@@ -1,23 +1,23 @@
 // Quick Exit v2, the Esc hint, neutral titles, and plain view (P2-E1, P2-E2,
 // P2-E4) in headless Chrome against a local preview. No accounts are made.
-//   SV_BASE_URL=http://127.0.0.1:8120 node tests/browser/site_ui.mjs
+//   PREVIEW_URL=http://127.0.0.1:8120 node tests/browser/site_ui.mjs
 // With SV_NGINX_URL (the nginx stack, see csp_clickthrough.mjs) it also checks
 // the no-JavaScript /plain/ pages nginx serves.
 // Never touches the outside world: requests to the neutral sites Quick Exit
 // opens are answered locally by the test.
 import puppeteer from "puppeteer-core";
 
-const BASE = process.env.SV_BASE_URL || "http://127.0.0.1:8099";
+const BASE = process.env.PREVIEW_URL || "http://127.0.0.1:8099";
 const NGINX = process.env.SV_NGINX_URL || "";
 const results = [];
 const check = (name, ok, extra = "") => { results.push(ok); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  (" + extra + ")" : ""}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  executablePath: process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
   acceptInsecureCerts: true,
-  args: ["--ignore-certificate-errors"],
+  args: ["--ignore-certificate-errors", ...(process.env.CI ? ["--no-sandbox"] : [])],
 });
 
 // A page whose window.open is recorded (or made to throw, like a popup

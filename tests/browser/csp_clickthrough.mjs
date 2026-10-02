@@ -30,10 +30,10 @@ let inCanary = false;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
-  executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  executablePath: process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
   acceptInsecureCerts: true,
-  args: ["--ignore-certificate-errors"],
+  args: ["--ignore-certificate-errors", ...(process.env.CI ? ["--no-sandbox"] : [])],
 });
 
 async function newPage(ctx) {
@@ -201,10 +201,13 @@ async function walkAll(page, label) {
     const s = document.getElementById("entry-search");
     if (s) { s.value = "click"; s.dispatchEvent(new Event("input", { bubbles: true })); }
   });
+  await click(page, "#export-open-btn");
+  await page.waitForFunction(() => !document.getElementById("export-view").hidden, { timeout: 15000 });
   for (const id of ["#export-print-btn", "#export-text-btn", "#export-close-btn"]) { await click(page, id); await sleep(400); }
   await page.evaluate(() => {
     const f = document.getElementById("plan-form");
     if (!f) return;
+    document.getElementById("plan-details").open = true;
     const field = f.querySelector("textarea, input[type=text]");
     if (field) field.value = "csp plan";
     f.requestSubmit();
