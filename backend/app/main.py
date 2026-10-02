@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .api import auth, checkin, contact, evidence, health
-from .core.config import get_settings
+from .core.config import get_settings, production_config_problems
 from .core.middleware import add_security_headers
 from .services.checkin import CheckinService
 
@@ -17,6 +17,11 @@ logger = logging.getLogger("solusvires.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    problems = production_config_problems(settings)
+    if problems:
+        for problem in problems:
+            logger.error("refusing_to_start: %s", problem)
+        raise RuntimeError("Unsafe production configuration: " + " ".join(problems))
     if not settings.checkin_token_secret:
         logger.warning(
             "CHECKIN_TOKEN_SECRET is not set - check-in invite links are insecure until it is."

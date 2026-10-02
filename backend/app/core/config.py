@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from sqlalchemy.engine import make_url
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -78,3 +80,33 @@ def get_settings() -> Settings:
             code.strip() for code in os.getenv("BETA_INVITE_CODES", "").split(",") if code.strip()
         ),
     )
+
+
+# Passwords that ship in this repo's examples and defaults. A production
+# database using one of them is as good as unprotected.
+_DEFAULT_DB_PASSWORDS = frozenset({"", "solusvires", "postgres", "password", "test-only", "changeme"})
+
+
+def _is_placeholder(value: str) -> bool:
+    return not value.strip() or value.strip().startswith("replace-with")
+
+
+def production_config_problems(settings: Settings) -> list[str]:
+    """Why this configuration must not run in production; empty when it's fine (review M9).
+
+    Only applies when APP_ENV=production. Messages name the setting, never its value.
+    """
+    if settings.environment != "production":
+        return []
+    problems = []
+    if _is_placeholder(settings.checkin_token_secret):
+        problems.append("CHECKIN_TOKEN_SECRET is empty or a placeholder: invite and alert links would be forgeable.")
+    if _is_placeholder(settings.recovery_code_pepper):
+        problems.append("RECOVERY_CODE_PEPPER is empty or a placeholder.")
+    db_password = make_url(settings.database_url).password or ""
+    env_password = os.getenv("POSTGRES_PASSWORD")
+    for password in (db_password, env_password):
+        if password is not None and (password in _DEFAULT_DB_PASSWORDS or _is_placeholder(password)):
+            problems.append("The database password (POSTGRES_PASSWORD) is a default or a placeholder.")
+            break
+    return problems
