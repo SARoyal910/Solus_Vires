@@ -51,14 +51,20 @@ def migrated_database() -> None:
         check=True,
         env={**os.environ, "DATABASE_URL": TEST_DATABASE_URL},
     )
+    # Start from empty tables too: a local preview may share this database.
+    _truncate_all()
+
+
+def _truncate_all() -> None:
+    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {tables} CASCADE"))
 
 
 @pytest.fixture(autouse=True)
 def clean_state() -> Iterator[None]:
     yield
-    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
-    with engine.begin() as conn:
-        conn.execute(text(f"TRUNCATE {tables} CASCADE"))
+    _truncate_all()
     for limiter in RateLimiter.instances:
         limiter.reset()
     login_throttle.reset()
