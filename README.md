@@ -2,7 +2,7 @@
 
 Solus Vires is a free, private safety and resource site for anyone being hurt by a partner or family member, whatever their gender, and for the people around them. Live at https://solusvires.com (not yet promoted; accounts are invite-only until legal and advocacy review).
 
-Where things stand: `docs/PROGRESS.md` (what's live), `docs/PHASE2_PLAN.md` (what's next), `docs/RUNBOOK.md` (deploy, backups, restore).
+Where things stand: `docs/PROGRESS.md` (what's live), `docs/PHASE2_PLAN.md` (what's next), `docs/RUNBOOK.md` (deploy, backups, restore, monitoring), `docs/THREAT_MODEL.md` (who the site defends against, and how), `docs/INCIDENT_PLAN.md` (what to do when something goes wrong).
 
 What's here:
 
@@ -16,6 +16,7 @@ What's here:
 - Nginx reverse proxy configuration
 - Docker Compose stack, deployed to a DigitalOcean droplet behind Cloudflare
 - Safety-minded copy that avoids false emergency dispatch claims
+- An installable app, with an opt-in offline copy of the Emergency and Resources pages (English and Spanish) for when there's no signal
 
 ## Local Development
 
@@ -24,10 +25,12 @@ scripts/preview.sh        # the site + API with a throwaway database at http://1
 scripts/preview.sh down   # stop it and discard the database
 scripts/test.sh           # lint + backend tests (Python 3.12, throwaway Postgres)
 node --test tests/web/    # browser encryption tests
+node tests/browser/offline.mjs                    # offline copy + install, headless Chrome, against the preview
 scripts/probe_headers.sh https://solusvires.com   # security headers on every page
+scripts/smoke.sh https://solusvires.com           # headers + API + every page; read-only, the last step of every deploy
 ```
 
-All of these run in Docker under their own compose projects, so they never touch another stack's containers or data.
+All of these run in Docker under their own compose projects, so they never touch another stack's containers or data. To run a second checkout's at the same time, give it its own names: `SV_TEST_PROJECT=sv-x scripts/test.sh`, `SV_PREVIEW_PROJECT=sv-x-preview PREVIEW_PORT=8130 scripts/preview.sh`.
 
 Useful routes: `GET /api/health`, `GET /docs`.
 
@@ -42,8 +45,11 @@ cp .env.example .env
 Set a strong `POSTGRES_PASSWORD`, then run:
 
 ```bash
-docker compose up --build
+scripts/migrate.sh            # builds the api image and applies database migrations
+docker compose up -d --wait   # starts nginx, the api and Postgres; fails if any isn't healthy
 ```
+
+Migrations never run on container start: run `scripts/migrate.sh` after pulling a change that adds one. If you forget, the api shows `(unhealthy)` and `up --wait` says so. The image runs the code it was built with; for live reload while developing, `cp docker-compose.override.example.yml docker-compose.override.yml` (gitignored, so it never reaches production). On the droplet, deploy with `scripts/deploy.sh https://solusvires.com` (`docs/RUNBOOK.md`).
 
 If you want the check-in system's notifications to actually send (optional — everything else works without this), generate real keys and add them to `.env`:
 
