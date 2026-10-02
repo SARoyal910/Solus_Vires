@@ -1,6 +1,6 @@
 # Runbook
 
-How to deploy, back up, and restore Solus Vires. Keep this current; the
+How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
 "last done" dates are the evidence that it works.
 
 ## Where things run
@@ -17,6 +17,9 @@ How to deploy, back up, and restore Solus Vires. Keep this current; the
 - **Phase 2 work** happens in the `~/Projects/solusvires-phase2` worktree
   (branch `phase2`). Preview with `scripts/preview.sh`
   (http://127.0.0.1:8099, throwaway database). Test with `scripts/test.sh`.
+  A second checkout can run its own at the same time:
+  `SV_TEST_PROJECT=sv-x scripts/test.sh`,
+  `SV_PREVIEW_PROJECT=sv-x-preview PREVIEW_PORT=8130 scripts/preview.sh`.
 
 ## Cloudflare settings the site depends on
 
@@ -31,6 +34,12 @@ How to deploy, back up, and restore Solus Vires. Keep this current; the
 
 ## Deploying
 
+Migrations are a separate, explicit step (P2-A15). The api container no
+longer runs `alembic upgrade head` when it starts, and production no longer
+bind-mounts `backend/app`: it runs exactly the code built into the image.
+`scripts/deploy.sh` does the droplet steps in the right order and stops at
+the first problem; the manual equivalent is listed under it.
+
 On the Mac:
 1. In the worktree: `scripts/test.sh` and `node --test tests/web/` are green.
 2. Bring the work into `main` and push:
@@ -39,22 +48,110 @@ On the Mac:
 
 On the droplet:
 3. `cd` to the checkout, `git status` (must be clean), `git pull origin main`.
-4. `docker compose up -d --build`. Rebuilds the api (applies migrations on
-   start, until P2-A15 makes that a separate step) and recreates nginx if its
-   mounts changed.
-5. From anywhere: `scripts/probe_headers.sh https://solusvires.com` shows
-   every line `ok`. If a change doesn't show, purge Cloudflare's cache
+4. Run the deploy:
+   ```
+   BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/deploy.sh https://solusvires.com
+   ```
+   It refuses to run with uncommitted changes or a source bind mount, takes
+   an encrypted backup, builds the api image, applies migrations
+   (`scripts/migrate.sh`), recreates whatever changed, waits until every
+   container is healthy, then runs the smoke test. `SKIP_BACKUP=1` skips the
+   backup; only use it when `git log` shows no new file in
+   `backend/migrations/versions/`.
+
+   The same thing by hand, in this order:
+   ```
+   scripts/backup.sh ~/solusvires-backups        # with BACKUP_AGE_RECIPIENT set
+   scripts/migrate.sh                            # builds the api image, then alembic upgrade head
+   docker compose up -d --wait                   # fails if any container isn't healthy
+   scripts/smoke.sh https://solusvires.com       # LAST step, see below
+   ```
+5. **Last step, every deploy:** `scripts/smoke.sh https://solusvires.com`
+   prints `SMOKE OK`. It is read-only (GET requests only) and checks the
+   security headers on every page (`scripts/probe_headers.sh`), that
+   `/api/health` answers and the API refuses an anonymous `/api/auth/me`,
+   that every page and asset in `html/` returns 200, that the private pages
+   are `no-store`, and that no third-party script (Cloudflare Web Analytics,
+   say) has been injected. It reads the page list from the checkout it runs
+   in, so run it from the commit you just deployed (the droplet, or the Mac
+   on the same commit). If a change doesn't show, purge Cloudflare's cache
    (Caching > Configuration > Purge Everything) before assuming it failed.
 6. Spot-check in a browser: home page, Notes unlock, check-in page.
 
-### First Phase 2 deploy (Sprints 0-1) — extra steps on the droplet
+**If you forget the migrate step:** the api container's healthcheck compares
+the database's migration version with the one the code expects. A mismatch
+makes it `unhealthy` within about a minute, `docker compose up -d --wait`
+exits with an error, and `docker compose ps` shows `(unhealthy)`. The reason
+is in `docker inspect --format '{{json .State.Health}}' solusvires_api`
+("database schema is [...], this code needs [...]: run scripts/migrate.sh").
+The public pages keep working (nginx doesn't wait for the api); fix it with
+`scripts/migrate.sh` then `docker compose up -d --wait`. Note that plain
+`docker compose up -d --build` (the old step) returns success without
+waiting; that's why the steps above use `--wait`.
+
+**Order matters.** Migrate *before* `up`: for a minute the old api runs on
+the new schema, which is fine because migrations here only add things. A
+migration that removes or renames something (e.g. 0008, dropping the old
+lockout columns) must ship one release after the code stops using it.
+
+**Rolling back:** check out the previous commit and run
+`docker compose up -d --build --wait`. Migrations can stay applied, since
+older code ignores added columns. One trap: commits from before P2-A15
+(`83be254` and earlier) still run `alembic upgrade head` when the api
+starts, and fail to start if the database is at a revision they've never
+heard of. Rolling back past P2-A15 after a newer migration has run means
+downgrading first, with the *new* image still in place:
+`docker compose run --rm api alembic downgrade <revision the old code knows>`.
+
+### Next deploy: what changes on the droplet (P2-A15)
+
+Do this once, the first time `main` includes P2-A15. Everything else about
+the site is unchanged.
+
+1. **Before pulling**, check for a local override:
+   `ls docker-compose.override.yml`. If it exists and mounts `backend/app`,
+   move it out of the checkout (`mv docker-compose.override.yml ~/`).
+   `deploy.sh` refuses to run while a source mount is configured.
+2. `git pull origin main`, then `chmod +x scripts/*.sh` only if `git` says
+   the scripts aren't executable (they're committed as executable).
+3. Take a backup: `BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/backup.sh ~/solusvires-backups`.
+4. `scripts/migrate.sh`. It prints `before:` and `after:`; `after` must end
+   in `(head)`. If this deploy brings no new migration, before and after
+   are both `0004 (head)` (or whatever production is on) and nothing changes.
+5. `docker compose up -d --wait`. Expect compose to **recreate all three
+   containers once**: the api (new command, no bind mount, healthcheck), the
+   database (it gained a healthcheck; the data lives in the `db_data`
+   volume, which is kept, so this is a few seconds' restart), and nginx
+   only if its config changed. `docker compose ps` should then show
+   `api ... (healthy)` and `db ... (healthy)`.
+6. Check the source mount is gone:
+   `docker inspect --format '{{json .Mounts}}' solusvires_api` prints `[]`.
+7. `scripts/smoke.sh https://solusvires.com` prints `SMOKE OK`.
+8. From the following deploy on, use `scripts/deploy.sh` (step 4 above).
+
+If step 5 fails with "unhealthy", run step 4 again and look at
+`docker compose logs --tail 50 api`. To undo everything:
+`git checkout 83be254 -- backend/Dockerfile docker-compose.yml && docker compose up -d --build`
+(safe only while no migration newer than the ones in `83be254` has been applied;
+see "Rolling back").
+
+**On the Mac**, the owner's local stack loses its live-reload source mount
+the next time it is brought up. To keep editing without rebuilding:
+`cp docker-compose.override.example.yml docker-compose.override.yml`
+(gitignored). Run `scripts/migrate.sh` after pulling a new migration there
+too.
+
+### First Phase 2 deploy (Sprints 0-1), done 2026-09-26
+
+Kept for the record.
 
 - **Before step 4**, add invite codes to the droplet's `.env`, or new sign-ups
   are paused (existing accounts are unaffected):
   `BETA_SIGNUPS_ENABLED=false` and `BETA_INVITE_CODES=code-1,code-2`
   (one per person you invite).
 - **Take a backup first** (see below): migrations 0003 (Notes PIN key-check)
-  and 0004 (push endpoints per contact) run when the api starts.
+  and 0004 (push endpoints per contact) ran when the api started (the
+  pre-P2-A15 behaviour).
 - nginx gains a new mount (`nginx/snippets`); `up -d` recreates it.
 - nginx now requires Cloudflare's origin-pull client certificate (Global
   Authenticated Origin Pulls is on). After step 4, check that a direct
