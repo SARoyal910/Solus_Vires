@@ -50,12 +50,40 @@
       </div>
     </section>
 
-    <section class="band alt">
+    <section class="band alt" id="reach-us">
       <div class="section-head">
         <p class="eyebrow">About this site</p>
         <h2>Reaching the person who runs it</h2>
-        <p>For questions about the site itself, not for support, see the <a href="/about.html">About page</a>. A monitored contact address is being set up and will be listed there.</p>
+        <p id="contact-off">For questions about the site itself, not for support, see the <a href="/about.html">About page</a>. A monitored contact address is being set up and will be listed there.</p>
+        <p id="contact-intro" hidden>For questions about the site itself, or to tell us something is wrong or missing. Messages go by email to the one person who runs this site (see the <a href="/about.html">About page</a>). This is not a support service: we aim to reply <span id="response-window">within 7 days</span> if you leave a safe way to reach you, and it can take longer.</p>
       </div>
+
+      <article class="card" id="contact-form-card" hidden>
+        <div id="contact-form-wrap">
+          <form id="contact-form" novalidate>
+            <div class="safe-note">Email isn't private. Write only what you'd be OK with someone else reading, and only give a way to reach you that's safe. This site doesn't keep a copy; your message passes through our email provider (Brevo) to the inbox.</div>
+            <label>
+              What should we call you? (optional, any name is fine)
+              <input type="text" name="safe_name" maxlength="120" autocomplete="off">
+            </label>
+            <label>
+              A safe way to reply (optional)
+              <input type="text" name="safe_contact" maxlength="200" autocomplete="off">
+            </label>
+            <label>
+              Your message
+              <textarea name="message" rows="6" maxlength="3000" required></textarea>
+            </label>
+            <p class="notice"><strong>Not for emergencies.</strong> No one watches this inbox around the clock. If you need support now, call 1-800-799-7233 or text START to 88788 (National Domestic Violence Hotline, 24/7). In danger now? Call 911.</p>
+            <button type="submit" class="btn primary">Send message</button>
+            <p id="contact-status" class="status" aria-live="polite"></p>
+          </form>
+        </div>
+        <div id="contact-sent" hidden>
+          <h3>Message sent</h3>
+          <p id="contact-sent-text"></p>
+        </div>
+      </article>
     </section>
   </main>
 
@@ -64,5 +92,6 @@
     <p class="footer-links"><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/help-someone.html">Help someone</a></p>
   </footer>
   <script src="/shared.js"></script>
+  <script src="/contact.js"></script>
 </body>
 </html>

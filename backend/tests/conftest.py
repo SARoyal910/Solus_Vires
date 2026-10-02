@@ -24,6 +24,7 @@ if not TEST_DATABASE_URL.rsplit("/", 1)[-1].endswith("_test"):
 # environment must be in place before anything under app/ is imported.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("CHECKIN_TOKEN_SECRET", "test-secret")
+os.environ.setdefault("RECOVERY_CODE_PEPPER", "test-pepper")
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("BETA_SIGNUPS_ENABLED", "true")  # gate behaviour is tested explicitly
 
@@ -33,6 +34,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core import rate_limit  # noqa: E402
+from app.core.abuse_alert import abuse_monitor  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.db import Base, engine  # noqa: E402
 from app.core.login_throttle import login_throttle  # noqa: E402
@@ -50,17 +52,24 @@ def migrated_database() -> None:
         check=True,
         env={**os.environ, "DATABASE_URL": TEST_DATABASE_URL},
     )
+    # Start from empty tables too: a local preview may share this database.
+    _truncate_all()
+
+
+def _truncate_all() -> None:
+    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {tables} CASCADE"))
 
 
 @pytest.fixture(autouse=True)
 def clean_state() -> Iterator[None]:
     yield
-    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
-    with engine.begin() as conn:
-        conn.execute(text(f"TRUNCATE {tables} CASCADE"))
+    _truncate_all()
     for limiter in RateLimiter.instances:
         limiter.reset()
     login_throttle.reset()
+    abuse_monitor.reset()
 
 
 @pytest.fixture
@@ -69,6 +78,33 @@ def trust_proxy(monkeypatch) -> None:
     settings = get_settings()
     trusted = settings.__class__(**{**settings.__dict__, "trust_proxy_headers": True})
     monkeypatch.setattr(rate_limit, "get_settings", lambda: trusted)
+
+
+@pytest.fixture
+def settings_env() -> Iterator:
+    """Sets environment variables and rebuilds the cached settings; undone after the test.
+
+    Usage: ``settings_env(APP_ENV="production", CONTACT_INBOX_EMAIL="x@example.org")``.
+    A value of None removes the variable.
+    """
+    saved: dict[str, str | None] = {}
+
+    def apply(**env: str | None) -> None:
+        for key, value in env.items():
+            saved.setdefault(key, os.environ.get(key))
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        get_settings.cache_clear()
+
+    yield apply
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+    get_settings.cache_clear()
 
 
 def make_client() -> TestClient:

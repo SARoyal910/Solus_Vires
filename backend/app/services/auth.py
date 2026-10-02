@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, Response, status
@@ -14,6 +15,8 @@ from ..core.security import (
     delete_session,
     generate_recovery_codes,
     hash_secret,
+    normalize_recovery_code,
+    recovery_code_digest,
     register_failed_login,
     reset_failed_logins,
     verify_secret,
@@ -22,6 +25,11 @@ from ..models.auth import RecoveryCode, User
 from ..schemas.auth import DeleteAccountRequest, LoginRequest, RecoverRequest, RegisterRequest
 
 logger = logging.getLogger("solusvires.auth")
+
+# An unknown username is checked against this so it costs the same Argon2 work
+# as a wrong password; otherwise response time reveals which usernames exist
+# (review M2). The password itself is random and never used again.
+_DUMMY_PASSWORD_HASH = hash_secret(secrets.token_urlsafe(16))
 
 
 def _digest(value: str) -> bytes:
@@ -62,7 +70,7 @@ class AuthService:
 
         codes = generate_recovery_codes()
         for code in codes:
-            db.add(RecoveryCode(user_id=user.id, code_hash=hash_secret(code)))
+            db.add(RecoveryCode(user_id=user.id, code_sha256=recovery_code_digest(user.id, code)))
         db.commit()
 
         logger.info("account_registered")
@@ -73,6 +81,7 @@ class AuthService:
 
         user = db.query(User).filter(User.username == payload.username).first()
         if user is None:
+            verify_secret(_DUMMY_PASSWORD_HASH, payload.password)
             login_throttle.record_failure(client_ip, payload.username)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
 
@@ -101,13 +110,17 @@ class AuthService:
         if user is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid recovery code.")
 
-        matching_code = None
-        for code in db.query(RecoveryCode).filter(
-            RecoveryCode.user_id == user.id, RecoveryCode.used_at.is_(None)
-        ):
-            if verify_secret(code.code_hash, payload.recovery_code):
-                matching_code = code
-                break
+        unused = db.query(RecoveryCode).filter(RecoveryCode.user_id == user.id, RecoveryCode.used_at.is_(None))
+        matching_code = unused.filter(
+            RecoveryCode.code_sha256 == recovery_code_digest(user.id, payload.recovery_code)
+        ).first()
+        if matching_code is None:
+            # Codes issued before migration 0005 only have an Argon2 hash.
+            supplied = normalize_recovery_code(payload.recovery_code)
+            for code in unused.filter(RecoveryCode.code_sha256.is_(None), RecoveryCode.code_hash.isnot(None)):
+                if verify_secret(code.code_hash, supplied):
+                    matching_code = code
+                    break
 
         if matching_code is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid recovery code.")

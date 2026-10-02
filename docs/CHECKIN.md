@@ -51,6 +51,18 @@ checkin_schedules  id, user_id (fk, unique — one per account), active,
 
 **One device, several survivors (Phase 2, migration 0004).** A browser has one push endpoint per site. Endpoints used to be globally unique, so a person who was the trusted contact for two survivors had their device silently moved to whichever invite they subscribed under last. Endpoints are now unique per contact: the same device can serve several contacts, re-subscribing refreshes its keys under all of them, and an expired endpoint is removed from all of them.
 
+**Reliability additions (Phase 2 P2-E5, migration 0006).**
+
+```
+checkin_alert_log   id, user_id (fk), kind (alert | stand_down | turned_off), alert_number,
+                    contacts_notified, emails_sent, pushes_sent, pushes_failed, created_at
+checkin_schedules   + alerts_sent_count   (alerts since the last check-in)
+push_subscriptions  + last_push_ok_at     (push service last accepted an alert for this device)
+trusted_contacts    + push_lost_at        (their device was pruned as expired; cleared on re-subscribe)
+```
+
+The alert log holds counts only: never message text, contact addresses, or anything about the survivor's device. Only the survivor sees it, they can clear it, rows older than 90 days are deleted by the maintenance sweep, and it is deleted with the account.
+
 ## API surface
 
 **`backend/app/api/checkin.py`** (`CheckinService` in `backend/app/services/checkin.py`):
@@ -58,6 +70,8 @@ checkin_schedules  id, user_id (fk, unique — one per account), active,
 Survivor-authenticated (behind `get_current_user`, scoped to the caller):
 - `GET/POST /api/checkin/contacts`, `DELETE /api/checkin/contacts/{id}`, `POST /api/checkin/contacts/{id}/resend`
 - `GET/PUT /api/checkin/schedule`, `POST /api/checkin/schedule/checkin` ("I'm OK")
+- `GET/DELETE /api/checkin/alerts` — the survivor's alert history (newest 50), and clearing it
+- `resend` also re-invites a contact who stopped alerts themselves (status `revoked`): they get a fresh invite and nothing reaches them unless they accept it again. An old link can't be used to re-accept after stopping (409). Only an already-accepted contact gets a 409 from `resend`.
 
 Public, token-authenticated (no account — this is the first place in the app where someone other than the account holder interacts with the backend):
 - `GET /api/checkin/invite/{token}` — survivor's username + current status only
@@ -67,9 +81,17 @@ Public, token-authenticated (no account — this is the first place in the app w
 
 ## Background alert loop
 
-No new infrastructure or scheduler dependency: `backend/app/main.py` starts a single `asyncio` background task in the app's `lifespan` context that sleeps for `CHECKIN_ALERT_CHECK_SECONDS` (default 300s), then runs one pass over active schedules in a thread (`asyncio.to_thread`) so the synchronous DB/HTTP work in `CheckinService.run_due_alerts_once` doesn't block the event loop. A schedule is overdue once `next_deadline_at + grace_hours` has passed; alerts repeat at most every `CHECKIN_ALERT_REPEAT_HOURS` (default 6) until the survivor checks in again, rather than firing once or spamming continuously.
+No new infrastructure or scheduler dependency: `backend/app/main.py` starts a single `asyncio` background task in the app's `lifespan` context that sleeps for `CHECKIN_ALERT_CHECK_SECONDS` (default 300s), then runs one pass over active schedules in a thread (`asyncio.to_thread`) so the synchronous DB/HTTP work in `CheckinService.run_due_alerts_once` doesn't block the event loop. A pass that raises is logged and the loop carries on; it never silently stops.
 
-On each overdue pass, every accepted contact gets a push attempt to all their subscribed devices (a 404/410 response prunes that subscription as expired) plus an email, unconditionally — push is best-effort, email is the channel this system can actually promise.
+- **One pass at a time (Phase 2, P2-A8).** Each pass holds a Postgres advisory lock (`pg_try_advisory_lock`, on its own connection) for its whole run. A second process pointed at the same database, such as a local `uvicorn` next to the Docker `api`, skips the pass instead of sending duplicate alerts. `CHECKIN_ALERT_LOOP_ENABLED` turns the loop off entirely; it defaults to on only when `APP_ENV=production`.
+- **When an alert fires.** A schedule is overdue once `next_deadline_at + grace_hours` has passed. Alerts repeat at most every `CHECKIN_ALERT_REPEAT_HOURS` (default 6) until the survivor checks in again, rather than firing once or spamming continuously.
+- **Both channels, every time (decision D4).** Every accepted contact gets a push to each of their subscribed devices (a 404/410 response prunes that device for every contact it served) **and** an email, on the first alert and on every repeat. Email is not a fallback that only runs when push fails: the server can never confirm a push was seen, and a duplicate alert is safer than a missed one.
+- **The copy says what happens next.** Both the email and the push say the alert repeats every `CHECKIN_ALERT_REPEAT_HOURS` hours until the survivor checks in, and point to `/if-you-get-an-alert.html`.
+- **Numbered repeats and stand-downs (P2-E5).** Repeats say which alert they are ("Check-in alert 2"). When the survivor checks in after an alert went out, or turns check-ins off mid-alert, every accepted contact gets one email and push saying the alerts have stopped, sent after the survivor's request returns so "I'm OK" never waits on it. The stand-down says plainly that it only means someone signed in to the account.
+- **Push health the survivor can see (P2-E5).** Each contact card on `checkin.html` shows when the push service last accepted an alert for that contact (accepted, not seen: browsers don't report that), and warns when the contact's device was pruned as expired, noting that email still reaches them.
+- **Heartbeat (P2-F2).** When `HEALTHCHECK_PING_URL` is set, a pass that runs to the end (lock held, no error) sends a GET to it. A pass skipped because another process holds the lock, a pass that raised, or a stopped loop sends nothing, so the monitor sees a missed beat. A failed ping is logged and never affects alerts. The monitor's period should match `CHECKIN_ALERT_CHECK_SECONDS` (300 s) plus some grace.
+- **Housekeeping.** After each pass, still under the lock, expired sessions and alert history older than 90 days are deleted.
+- **Saving the schedule moves the deadline (P2-A11).** While check-ins are on, every save recomputes `next_deadline_at = last_checkin_at + interval_hours`, so shortening the interval takes effect at once. If that time has already passed, the deadline is set to the moment of saving and the grace period runs from there.
 
 ## Frontend
 
@@ -86,9 +108,11 @@ Against the real Docker stack (`docker compose build api && docker compose up -d
 - Full round trip: registered a test account, added a trusted contact, fetched the invite by reconstructing its HMAC token, accepted it, registered a (fake) push subscription, activated a schedule, forced it overdue by rewriting `next_deadline_at`, and ran the alert pass directly — it attempted the push (failed gracefully and predictably on the fake endpoint, logged rather than crashing), attempted the email fallback (no-op logged since `BREVO_API_KEY` wasn't set), and correctly set `last_alert_sent_at`.
 - "I'm OK" check-in correctly reset the deadline and cleared the overdue state.
 - The contact's own "stop being a check-in contact" endpoint correctly revoked status and deleted their push subscriptions.
-- `resend` correctly rejected (409) for an already-responded contact, since the original invite link stays valid — the contact can always re-accept it directly, so a resend is unnecessary once they've replied.
+- `resend` correctly rejected (409) for an already-responded contact, since the original invite link stays valid — the contact can always re-accept it directly, so a resend is unnecessary once they've replied. (Superseded in Phase 2: a declined or self-revoked contact can now be invited again; only an accepted one gets the 409.)
 - An invalid/forged token correctly returned 404 from the invite endpoint.
 - Test account and contact were deleted from the dev database afterward.
+
+Phase 2 (P2-A8 to A14, E5) is covered by the pytest suite (`backend/tests/test_alert_pass.py`, `test_checkin.py`, `test_checkin_reliability.py`, `test_sessions.py`) and was clicked through in headless Chrome against a local preview at 390px and 360px: alerted state, history, push-health lines, dead-push warning, stand-down after "I'm OK", re-invite, clearing history. Email and push were not configured there, so nothing left the machine.
 
 ## Not yet verified
 
@@ -102,4 +126,4 @@ Against the real Docker stack (`docker compose build api && docker compose up -d
 - Real-time location sharing (a separate, larger, and more safety-sensitive feature than a check-in ping — deliberately not bundled in).
 - SMS as a channel (no free option exists; see above).
 - Rate limiting on invite creation or the public invite endpoints.
-- A UI for the survivor to see *why* an alert fired (e.g., a history log) beyond the current overdue/not-overdue state.
+- ~~A UI for the survivor to see *why* an alert fired (e.g., a history log)~~ Done in Phase 2 (P2-E5): alert history on `checkin.html`.

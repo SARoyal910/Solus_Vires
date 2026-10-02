@@ -1,5 +1,7 @@
 import hashlib
+import hmac
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
@@ -13,6 +15,10 @@ from .config import get_settings
 from .db import get_db
 
 SESSION_COOKIE_NAME = "sv_session"
+
+# last_seen_at is only rewritten when it is at least this old, so ordinary
+# browsing doesn't turn every authenticated read into a database write (M7).
+LAST_SEEN_RESOLUTION = timedelta(minutes=5)
 
 _hasher = PasswordHasher()
 
@@ -31,6 +37,25 @@ def verify_secret(hashed: str, value: str) -> bool:
 
 def generate_recovery_codes(count: int = 10) -> list[str]:
     return [f"{secrets.token_hex(5)}-{secrets.token_hex(5)}" for _ in range(count)]
+
+
+def normalize_recovery_code(code: str) -> str:
+    """Codes are lowercase hex with a hyphen; tolerate case and stray spaces when typed back."""
+    return "".join(code.split()).lower()
+
+
+def recovery_code_digest(user_id: uuid.UUID, code: str) -> str:
+    """Peppered HMAC-SHA256 of a recovery code, bound to its account.
+
+    Recovery codes carry 80 random bits, so a fast keyed hash is enough and
+    lets /recover find a code with one indexed lookup instead of up to ten
+    Argon2 verifications (review M6). The pepper lives in the server's
+    environment, not the database, so a database dump alone can't be used to
+    test guesses.
+    """
+    key = get_settings().recovery_code_pepper.encode("utf-8")
+    message = f"{user_id}:{normalize_recovery_code(code)}".encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
 
 
 def register_failed_login(db: Session, user: User) -> None:
@@ -70,7 +95,10 @@ def create_session(db: Session, response: Response, user: User) -> None:
         value=raw_token,
         httponly=True,
         secure=settings.session_cookie_secure,
-        samesite="strict",
+        # Lax, not Strict: a survivor following a link from an email or text
+        # must arrive logged in (review L1). Every state-changing route is a
+        # JSON POST/PUT/DELETE with no CORS, so Lax still keeps them same-site.
+        samesite="lax",
         max_age=settings.session_ttl_days * 24 * 60 * 60,
         path="/",
     )
@@ -104,10 +132,19 @@ def get_current_user(
     if session_row is None or session_row.expires_at <= datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
 
-    session_row.last_seen_at = datetime.now(timezone.utc)
-    db.commit()
+    now = datetime.now(timezone.utc)
+    if session_row.last_seen_at is None or now - session_row.last_seen_at >= LAST_SEEN_RESOLUTION:
+        session_row.last_seen_at = now
+        db.commit()
 
     user = db.get(User, session_row.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
     return user
+
+
+def sweep_expired_sessions(db: Session) -> int:
+    """Deletes session rows past their expiry. Run from the background loop (M7)."""
+    deleted = db.query(SessionModel).filter(SessionModel.expires_at <= datetime.now(timezone.utc)).delete()
+    db.commit()
+    return deleted

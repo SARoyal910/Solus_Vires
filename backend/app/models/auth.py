@@ -39,7 +39,10 @@ class RecoveryCode(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    code_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    # Argon2 hash; only codes issued before migration 0005 have one.
+    code_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # HMAC-SHA256(RECOVERY_CODE_PEPPER, "<user id>:<code>"), hex. Looked up directly.
+    code_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     used_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
