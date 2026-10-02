@@ -25,6 +25,7 @@ const OFFLINE_FILES = [
   "/es/recursos.html",
   "/shared.css",
   "/shared.js",
+  "/theme.js",
   "/offline.js",
   "/local-help.js",
   "/manifest.json",

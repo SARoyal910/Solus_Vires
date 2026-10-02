@@ -4,13 +4,35 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 
 ## Waiting on the owner
 
+**To ship what's on `phase2`** (merged and tested 2026-10-02, not deployed)
+- [ ] Push `phase2`, check the new CI jobs pass on GitHub (they have only been run locally), merge to `main`
+- [ ] Deploy on the droplet following `docs/RUNBOOK.md` "Next deploy". Before pulling: set `RECOVERY_CODE_PEPPER` in `.env` (never change it afterwards) and make sure `CHECKIN_TOKEN_SECRET` and `POSTGRES_PASSWORD` are real values, or the API will refuse to start and check-in alerts will stop
+- [ ] In Cloudflare, confirm Rocket Loader, Email Address Obfuscation, and Web Analytics are off, and that no rule caches HTML
+- [ ] Run the checks that need a real phone (`docs/RUNBOOK.md` "Checks that need a real phone"), including a real push and a real Brevo email (P2-E6)
+- [ ] Create the UptimeRobot and Healthchecks.io checks, set `HEALTHCHECK_PING_URL`, and run the forced test (P2-F2)
+
+**Decisions**
+- [ ] Pick a public contact address and a reply window, then set `CONTACT_INBOX_EMAIL` (the form is built and stays off until then; the default wording says 7 days) (P2-C5)
+- [ ] Pick an address for operator alerts (`OPERATOR_ALERT_EMAIL`) and name a second person for incidents (`docs/INCIDENT_PLAN.md`)
+- [ ] Decide whether "Is this abuse?" goes in the top menu (Recovery would move to the footer) (P2-D10)
+- [ ] About page says the outside review "is under way", but no request has been sent yet: send the requests or change the wording
+- [ ] Privacy page says backups are deleted within 30 days: keep that true when backups are copied off the droplet, or change the wording
+
+**People to find**
+- [ ] Legal counsel and a DV advocacy organization, including someone experienced with male survivors; the request packets are drafted in `docs/legal/` and `docs/advocacy/` (D6, P2-C3/C4)
+- [ ] A native Spanish speaker, ideally an advocate, to review `/es/` (P2-D8)
+
+**Housekeeping**
 - [ ] Check on the droplet that access logs are off: `docker logs --since 30m solusvires_web` should show no `GET /...` lines
-- [ ] Move `~/solusvires-backup-key.txt` off the Mac (password manager or USB); it's the only key that opens the backups
+- [ ] Move `~/solusvires-backup-key.txt` off the Mac (password manager or USB); it's the only key that opens the backups. Keep a copy of `RECOVERY_CODE_PEPPER` with it
 - [ ] Get backups off the droplet: DigitalOcean droplet backups, or periodically `scp` a `.dump.age` to the Mac
-- [ ] Pick a public contact address (e.g. a new site-only mailbox) so the contact form and About page can use it (P2-C5)
-- [ ] Decide whether "Is this abuse?" goes in the top menu (Recovery would move to the footer), then deploy with the cache fix
-- [ ] Find a native Spanish speaker, ideally an advocate, to review `/es/` (P2-D8)
-- [ ] Reach out to legal counsel and a DV advocacy organization, including someone experienced with male survivors (D6, P2-C3/C4)
+- [ ] Check the Cloudflare dashboard for a Workers or Pages project left over from the deleted `wrangler.jsonc`
+
+**Blocked until the reviews come back**
+- Work through the feedback (P2-C7), the retention policy (P2-F6), reopening sign-ups (P2-B10), freezing `DESIGN2.md`
+
+**Known gaps, not planned yet** (from `docs/THREAT_MODEL.md` §6)
+- A way to change the Notes PIN; a "where you're signed in" view; a cap on invite emails per account
 
 ## Deliberately not planned
 

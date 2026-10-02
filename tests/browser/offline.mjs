@@ -10,7 +10,7 @@ const BASE = process.env.PREVIEW_URL || "http://127.0.0.1:8099";
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const EXPECTED = [
   "/emergency.html", "/resources.html", "/es/emergencia.html", "/es/recursos.html",
-  "/shared.css", "/shared.js", "/offline.js", "/local-help.js", "/manifest.json", "/icon-192.png", "/icon-512.png",
+  "/shared.css", "/shared.js", "/theme.js", "/offline.js", "/local-help.js", "/manifest.json", "/icon-192.png", "/icon-512.png",
 ];
 const results = [];
 const check = (name, ok, extra = "") => { results.push(ok); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? "  (" + extra + ")" : ""}`); };

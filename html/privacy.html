@@ -53,6 +53,7 @@
           <ul>
             <li>To stop abuse like password guessing, the server briefly holds IP addresses in memory, with a count of requests it refused. They're never written to disk or put in any email, and are gone whenever the server restarts. If one address is refused many times in an hour, we get an email saying so, without the address.</li>
             <li>The Recovery page can remember which exercises you've done, only on your own device, and you can clear it there. The "Is this abuse?" check stores nothing at all.</li>
+            <li>If you switch on "Plain view", that choice is remembered only on your own device and is never sent to us. Someone who looks through your browser's stored site data could see that it was switched on.</li>
             <li>If you write to us through the contact form, your message is emailed to our inbox through Brevo. It isn't stored on the site or written to its logs; it's kept in that inbox.</li>
             <li>If you press "Save on this device" on the Emergency or Resources page, a copy of those pages is kept in your browser so they open without internet. Nothing is saved unless you press it, and the same button removes it. Someone who looks through your browser's stored site data could see it.</li>
           </ul>
@@ -71,7 +72,8 @@
           <ul>
             <li>Your username (we never ask for your name, email, or phone number)</li>
             <li>Your password, only as a one-way hash, and your recovery codes as one-way hashes that also need a secret key kept outside the database</li>
-            <li>Your notes and private profile, only as encrypted data we can't read</li>
+            <li>Your notes, private profile, and safety plan, only as encrypted data we can't read</li>
+            <li>Photos or screenshots you attach to a note, only as encrypted data we can't read. Before a photo is locked, your browser removes the hidden details saved inside it, such as where it was taken. The date it was taken is kept, inside the encrypted part</li>
             <li>When your account was created and when you last logged in</li>
             <li>A login cookie while you're signed in (it expires after 14 days)</li>
           </ul>
@@ -103,14 +105,15 @@
             <li>That an account with your username exists, and when it was created and last used</li>
             <li>Your trusted contacts' nicknames and email addresses</li>
             <li>Your check-in schedule and times, and the last 90 days of alert history (unless you cleared it)</li>
-            <li>How many notes you have and when they were saved (not what they say)</li>
+            <li>How many notes and photos you have, how large each photo is, and when they were saved (not what they say or show)</li>
+            <li>Whether you've saved a safety plan, and when it was last changed (not what's in it)</li>
             <li>Messages sent through the contact form, which are in our email inbox, not on the site</li>
           </ul>
         </article>
         <article class="card">
           <h2>Could not reveal</h2>
           <ul>
-            <li>What your notes or profile say</li>
+            <li>What your notes, profile, or safety plan say, or what your photos show</li>
             <li>Your PIN or your password</li>
             <li>Your real name, phone number, or location (we never collect them)</li>
             <li>Which pages you visited (we don't log it)</li>
@@ -169,7 +172,7 @@
         </article>
         <article class="card">
           <h2>It's still a prototype</h2>
-          <p>Accounts are invite-only. The site hasn't yet been reviewed by legal counsel or a domestic violence advocacy organization, and its security hasn't been independently audited. Features may change, and we may have to pause accounts or check-ins. There's no way to export your notes yet, so keep a copy of anything you can't afford to lose somewhere safe.</p>
+          <p>Accounts are invite-only. The site hasn't yet been reviewed by legal counsel or a domestic violence advocacy organization, and its security hasn't been independently audited. Features may change, and we may have to pause accounts or check-ins. You can print or save a copy of your notes from the Notes page. That copy is not encrypted: anyone who finds the file or the printout can read it, so keep it somewhere the person you're worried about can't reach.</p>
         </article>
         <article class="card">
           <h2>Use it for yourself, not on someone else</h2>
@@ -191,7 +194,11 @@
          30-dump backup rotation (scripts/backup.sh), opt-in-only offline copy of public pages (html/sw.js, html/offline.js), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
          Terms (added 2026-10-02, P2-C2): alerts come only from the background loop in backend/app/services/checkin.py via
          Web Push and Brevo, both best-effort (backend/app/core/notifications.py); sign-ups invite-only (BETA_SIGNUPS_ENABLED);
-         no notes export until P2-E3.
+         notes export is made in the browser from already-decrypted notes with no network calls
+         (html/notes-export.js, tests/web/export.test.mjs).
+         Lane B (P2-E4, E7, E8), 2026-10-02: plain view remembered in localStorage key sv-theme only (html/theme.js,
+         html/shared.js); safety_plans and evidence_attachments hold ciphertext, IVs, size_bytes and timestamps only
+         (backend/app/models/vault.py); image metadata stripped before encryption (html/image-clean.js).
          Lane A (P2-A13, C5, E5, F3), 2026-10-02: recovery codes as HMAC-SHA256 under RECOVERY_CODE_PEPPER (core/security.py
          recovery_code_digest; older codes keep Argon2 until used); contact form emails CONTACT_INBOX_EMAIL via Brevo, nothing
          stored or logged (services/contact.py, tests/test_contact.py); checkin_alert_log holds kind, number and counts only,

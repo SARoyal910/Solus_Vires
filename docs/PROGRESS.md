@@ -35,8 +35,45 @@ The one status page: what exists and is live right now. Detail lives in each fea
 
 ## On the `phase2` branch, not yet deployed
 
-- Browsers revalidate pages on every visit (`Cache-Control: no-cache`), so nobody sees a stale copy
-- Runbook note on the Cloudflare settings the site depends on
+Merged and tested locally on 2026-10-02. Nothing here is live until the next deploy, which has one-time extra steps: `docs/RUNBOOK.md` "Next deploy".
+
+**Phones**
+- The header is one row on phones (brand, menu button, Quick Exit); the page links open from the menu button
+
+**Safety and hardening (Sprint 2)**
+- A Content-Security-Policy on every page: no inline script or style, nothing from other sites
+- Two alert loops can't double-alert; one failed pass no longer stops the loop for good
+- Unknown usernames take as long to reject as wrong passwords
+- Recovery codes stored as a keyed hash; session cookie `SameSite=Lax`; expired sessions swept
+- The API refuses to start in production with an empty or default secret
+- Migrations are an explicit deploy step (`scripts/migrate.sh`); a deploy that skips it fails loudly. `scripts/deploy.sh` and `scripts/smoke.sh`
+
+**Notes**
+- PIN strength hint and clearer warnings; "Unlocking…" state
+- Print or save a copy of your notes (made in the browser, no network); search
+- A fillable, encrypted safety plan
+- Encrypted photos and screenshots, with location and other hidden details removed first
+
+**Check-ins**
+- Contacts are told when the alerts have stopped; alerts are numbered and say how often they repeat
+- The survivor sees an alert history and whether each contact's notifications still work; a contact who stopped can be invited again
+- Changing the schedule moves the deadline
+
+**Everyone**
+- Quick Exit opens a neutral site in a new tab and replaces the page; "Esc twice" hint
+- Plain view: an opt-in, low-key look, also available without JavaScript under `/plain/`
+- Neutral tab titles on private pages
+- "Save on this device": Emergency and Resources (English and Spanish) open without internet, only if asked for
+- Contact form that emails a monitored inbox (off until an address is set)
+- Older adults section on Safety; terms section on Privacy
+- Pages revalidate on every visit, so nobody sees a stale copy
+
+**Operations and docs**
+- Threat model (`docs/THREAT_MODEL.md`), incident plan (`docs/INCIDENT_PLAN.md`), monitoring steps, Dependabot
+- Operator email on repeated rate-limit hits; optional heartbeat ping after each alert pass
+- Review request packets drafted for legal counsel and an advocacy organization (not sent)
+
+**Tests on `phase2`:** 127 backend, 21 browser-side unit tests, and five headless-Chrome suites (Notes PIN 29, vault 28, site UI 41, offline copy 21, and a click-through of every page under the real policy with zero violations). The new CI jobs have not yet run on GitHub.
 
 ## Verified vs. not yet verified
 
@@ -50,4 +87,4 @@ Not yet verified in the real world:
 
 ## Not done yet
 
-See `docs/PHASE2_PLAN.md` for the full list and order. Highlights: legal review and advocacy review, a monitored contact address, Spanish review, a Content Security Policy, notes export, Quick Exit v2, and the low-key theme.
+Everything left needs the owner or someone outside the project; the list is `docs/TODO.md`. In short: deploy `phase2`, send the legal and advocacy review requests and work through the answers (P2-C3, C4, C7), a native-speaker review of `/es/` (P2-D8), a contact address, real-device checks (P2-E6), monitoring accounts (P2-F2), the retention policy after counsel (P2-F6), and reopening sign-ups only after both reviews (P2-B10). A PIN-change flow for Notes is not built.

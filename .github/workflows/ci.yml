@@ -54,6 +54,8 @@ jobs:
       POSTGRES_PASSWORD: ci-only
       CHECKIN_TOKEN_SECRET: ci-only
       RECOVERY_CODE_PEPPER: ci-only
+      # The click-through below registers throwaway accounts on this stack.
+      BETA_SIGNUPS_ENABLED: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Self-signed cert in place of the Cloudflare origin cert
@@ -76,6 +78,21 @@ jobs:
       - run: PROBE_INSECURE=1 scripts/probe_headers.sh https://localhost
       - name: Post-deploy smoke test, as run after every deploy
         run: PROBE_INSECURE=1 scripts/smoke.sh https://localhost
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --no-save --no-package-lock --prefix tests/browser puppeteer-core@23
+      - name: Click through every page under the real policy; any CSP violation fails (P2-A4)
+        run: node tests/browser/csp_clickthrough.mjs
+        env:
+          SV_NGINX_URL: https://localhost
+          SV_API_CONTAINER: solusvires_api
+          CHROME: /usr/bin/google-chrome
+      - name: Plain view under nginx, including the no-JavaScript /plain/ pages (P2-E4)
+        run: node tests/browser/site_ui.mjs
+        env:
+          SV_NGINX_URL: https://localhost
+          CHROME: /usr/bin/google-chrome
       - if: failure()
         run: docker compose logs
 
@@ -87,9 +104,9 @@ jobs:
       - run: shellcheck -S warning scripts/*.sh
 
   browser:
-    # The installable app's offline copy (P2-E9) in headless Chrome against
-    # the local preview: opt-in only, exact cache contents, network first,
-    # offline fallback, removal, and push still working.
+    # Headless Chrome against the local preview: the offline copy (P2-E9),
+    # the Notes PIN flows, export, safety plan and photos (P2-A3, A10, E3,
+    # E7, E8), and the header, Quick Exit and plain view (P2-E1, E2, E4).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,6 +116,15 @@ jobs:
       - run: scripts/preview.sh
       - run: npm install --no-save --no-package-lock --prefix tests/browser puppeteer-core@23
       - run: node tests/browser/offline.mjs
+        env:
+          CHROME: /usr/bin/google-chrome
+      - run: node tests/browser/notes_pin.mjs
+        env:
+          CHROME: /usr/bin/google-chrome
+      - run: node tests/browser/notes_vault.mjs
+        env:
+          CHROME: /usr/bin/google-chrome
+      - run: node tests/browser/site_ui.mjs
         env:
           CHROME: /usr/bin/google-chrome
       - if: failure()

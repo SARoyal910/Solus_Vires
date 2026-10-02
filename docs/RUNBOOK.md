@@ -31,6 +31,47 @@ How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
   must print 0.
 - **Authenticated Origin Pulls: Global, on.** nginx refuses connections
   without Cloudflare's client certificate.
+- **Rocket Loader and Email Address Obfuscation: Off.** Both work by
+  injecting scripts into pages. The Content-Security-Policy (below) blocks
+  injected scripts, so with either one on, pages would load with errors.
+- **No "Cache Everything" rule for HTML.** nginx sends pages as `no-cache`
+  (private pages `no-store`) and serves a second copy of every page under
+  `/plain/`. Cloudflare must keep passing HTML through, not cache it.
+
+## Content-Security-Policy
+
+Every response carries one `Content-Security-Policy` header, set in
+`nginx/snippets/security-headers.conf`: scripts, styles, images, and
+connections only from this site, no inline script or style. It is enforced,
+not report-only, because there is nowhere to send reports without logging
+the pages visitors open.
+
+- Check it: `scripts/probe_headers.sh https://solusvires.com` (also part of
+  `scripts/smoke.sh`).
+- If a page breaks after a deploy (blank section, a button that does
+  nothing; the browser console shows "Refused to ... because it violates
+  the Content Security Policy"): in that snippet, rename the header to
+  `Content-Security-Policy-Report-Only`, then
+  `docker compose exec web nginx -s reload`. Pages work again at once. Fix
+  the page, then rename it back.
+- New pages and scripts: no inline `<script>`, no `onclick=` style
+  attributes, no `style=` attributes. `tests/browser/csp_clickthrough.mjs`
+  clicks through every page under the real policy.
+
+## Checks that need a real phone
+
+Automated tests run in desktop Chrome sized like a phone. These still need a
+person with a device, once after the next deploy, results noted here:
+
+- Quick Exit on iPhone Safari, Android Chrome, and a desktop browser: the
+  current page must be replaced even when the new tab is blocked.
+- Notes: "Print or save a copy" to PDF on iPhone and Android.
+- Notes: add a photo from the camera roll on iPhone (HEIC) and Android; a
+  large photo on an older phone.
+- Plain view, and the `/plain/` link with JavaScript off.
+- "Save on this device" on Emergency, then open it in airplane mode.
+- A real push notification on Android and on an iPhone home-screen app, a
+  real Brevo email, and the alert loop firing on its own timer (P2-E6).
 
 ## Deploying
 
@@ -151,8 +192,8 @@ Then:
    `before: 0004 (head)` and an `after` ending in `(head)` at the newest
    revision: **0005** (recovery codes stored as a peppered HMAC), **0006**
    (check-in alert history and push health), and **0007** (encrypted
-   evidence attachments) if Lane B's work is in this deploy. All three only
-   add tables and columns.
+   safety plan and photo attachments). All three only add tables and
+   columns.
 5. `docker compose up -d --wait`. Expect compose to **recreate all three
    containers once**: the api (new command, no bind mount, healthcheck, new
    settings), the database (it gained a healthcheck; the data lives in the
