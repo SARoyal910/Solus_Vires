@@ -2,7 +2,8 @@
 // Chrome against a local preview. Never point it at production.
 //   scripts/preview.sh && node tests/browser/offline.mjs
 //   PREVIEW_URL=http://127.0.0.1:8130 node tests/browser/offline.mjs
-// Needs puppeteer-core (see notes_pin.mjs) and Chrome.
+// Needs puppeteer-core (see notes_pin.mjs) and Chrome (CHROME=/path/to/chrome).
+// CI runs it in the "browser" job of .github/workflows/ci.yml.
 import puppeteer from "puppeteer-core";
 
 const BASE = process.env.PREVIEW_URL || "http://127.0.0.1:8099";
@@ -20,7 +21,8 @@ async function waitFor(fn, ms = 15000) {
   return false;
 }
 
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
+// GitHub's Ubuntu runners can't give Chrome its sandbox; CI is set there.
+const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
 
 const cacheKeys = (page) => page.evaluate(async () => {
   const out = [];

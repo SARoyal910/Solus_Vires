@@ -46,8 +46,9 @@ jobs:
       - run: node --test tests/web/
 
   headers:
-    # Brings up the real nginx + api + db stack with a self-signed cert and
-    # checks every page for the security headers.
+    # Brings up the real nginx + api + db stack with a self-signed cert the
+    # way a deploy does (build, migrate, up --wait), checks that skipping the
+    # migrate step fails loudly, then runs the header probe and the smoke test.
     runs-on: ubuntu-latest
     env:
       POSTGRES_PASSWORD: ci-only
@@ -60,7 +61,44 @@ jobs:
             -keyout certs/origin.key -out certs/origin.crt
       - name: Skip the Cloudflare client-certificate check (CI isn't Cloudflare)
         run: sed -i '/authenticated-origin-pulls.conf/d' nginx/conf.d/default.conf
-      - run: docker compose up -d --build --wait
+      - run: docker compose build
+      - name: Without migrations the api must not come up healthy (P2-A15)
+        run: |
+          if docker compose up -d --wait --wait-timeout 150; then
+            echo "the api reported healthy on an unmigrated database"; exit 1
+          fi
+          docker compose ps
+      - run: scripts/migrate.sh
+      - run: docker compose up -d --wait --wait-timeout 120
+      - name: Production config has no source bind mount
+        run: "! docker compose config | grep -q 'target: /backend/app$'"
       - run: PROBE_INSECURE=1 scripts/probe_headers.sh https://localhost
+      - name: Post-deploy smoke test, as run after every deploy
+        run: PROBE_INSECURE=1 scripts/smoke.sh https://localhost
       - if: failure()
         run: docker compose logs
+
+  scripts:
+    # Lint the deploy, backup and test scripts (warnings and errors only).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck -S warning scripts/*.sh
+
+  browser:
+    # The installable app's offline copy (P2-E9) in headless Chrome against
+    # the local preview: opt-in only, exact cache contents, network first,
+    # offline fallback, removal, and push still working.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: scripts/preview.sh
+      - run: npm install --no-save --no-package-lock --prefix tests/browser puppeteer-core@23
+      - run: node tests/browser/offline.mjs
+        env:
+          CHROME: /usr/bin/google-chrome
+      - if: failure()
+        run: docker compose -p solusvires-preview -f docker-compose.test.yml logs preview

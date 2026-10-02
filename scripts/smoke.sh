@@ -1,4 +1,5 @@
 #!/usr/bin/env sh
+# shellcheck disable=SC2086  # $curl_opts is a list of flags, split on purpose
 # Post-deploy smoke test (P2-B7). The LAST step of every deploy.
 #   scripts/smoke.sh https://solusvires.com
 #   PROBE_INSECURE=1 scripts/smoke.sh https://127.0.0.1:8443   (self-signed cert)
@@ -15,7 +16,7 @@
 set -u
 base="${1:?usage: smoke.sh BASE_URL}"
 base="${base%/}"
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 curl_opts="-s --max-time 20"
 [ "${PROBE_INSECURE:-0}" = "1" ] && curl_opts="$curl_opts -k"
 tmp=$(mktemp -d)
@@ -34,7 +35,11 @@ else
   fail "/api/health returned $code: $(head -c 200 "$tmp/health")"
 fi
 code=$(curl $curl_opts -o /dev/null -w '%{http_code}' "$base/api/auth/me")
-[ "$code" = "401" ] && echo "ok   /api/auth/me refuses anonymous (401)" || fail "/api/auth/me returned $code, expected 401"
+if [ "$code" = "401" ]; then
+  echo "ok   /api/auth/me refuses anonymous (401)"
+else
+  fail "/api/auth/me returned $code, expected 401"
+fi
 
 echo "== 3. every page and asset returns 200"
 paths="/ /es/ $(cd html && find . -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.json' -o -name '*.png' -o -name '*.svg' -o -name '*.txt' \) | sed 's|^\.||' | sort)"
@@ -49,7 +54,7 @@ echo "checked $count paths"
 echo "== 4. private pages are never cached"
 for path in /account.html /log.html /checkin.html /checkin-invite.html; do
   curl $curl_opts -o /dev/null -D "$tmp/h" "$base$path"
-  if tr 'A-Z' 'a-z' < "$tmp/h" | grep -q '^cache-control:.*no-store'; then
+  if tr '[:upper:]' '[:lower:]' < "$tmp/h" | grep -q '^cache-control:.*no-store'; then
     echo "ok   $path no-store"
   else
     fail "$path is missing Cache-Control: no-store"
