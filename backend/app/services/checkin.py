@@ -241,11 +241,19 @@ class CheckinService:
         schedule.interval_hours = payload.interval_hours
         schedule.grace_hours = payload.grace_hours
 
-        if payload.active and (not was_active or schedule.next_deadline_at is None):
-            now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        if payload.active and (not was_active or schedule.last_checkin_at is None):
+            # Turning check-ins on counts as checking in.
             schedule.last_checkin_at = now
-            schedule.next_deadline_at = now + timedelta(hours=payload.interval_hours)
             schedule.last_alert_sent_at = None
+        if payload.active:
+            # Recomputed on every save, so shortening the interval takes
+            # effect now rather than after the old deadline (review M4). A
+            # deadline that would already be past lands on "now", so the
+            # grace period still runs before anyone is alerted.
+            schedule.next_deadline_at = max(
+                schedule.last_checkin_at + timedelta(hours=payload.interval_hours), now
+            )
 
         db.commit()
         db.refresh(schedule)

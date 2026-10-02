@@ -180,3 +180,46 @@ def test_alerts_point_contacts_to_guidance(monkeypatch):
     alert = emails[-1]["html_content"]
     assert "/if-you-get-an-alert.html" in alert
     assert "every 6 hours" in alert
+
+
+def _set_last_checkin(hours_ago: float) -> None:
+    with SessionLocal() as db:
+        db.query(CheckinSchedule).update(
+            {CheckinSchedule.last_checkin_at: datetime.now(timezone.utc) - timedelta(hours=hours_ago)}
+        )
+        db.commit()
+
+
+def _deadline(survivor) -> datetime:
+    return datetime.fromisoformat(survivor.get("/api/checkin/schedule").json()["next_deadline_at"])
+
+
+def test_shortening_the_interval_moves_the_deadline():
+    """M4: 1 week -> 12 hours must not leave the week-long deadline in place."""
+    survivor = register_and_login("survivor_a")
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 168, "grace_hours": 6})
+    _set_last_checkin(hours_ago=2)
+
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 12, "grace_hours": 6})
+
+    expected = datetime.now(timezone.utc) + timedelta(hours=10)
+    assert abs(_deadline(survivor) - expected) < timedelta(minutes=1)
+
+
+def test_lengthening_the_interval_moves_the_deadline_out():
+    survivor = register_and_login("survivor_a")
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 12, "grace_hours": 6})
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 48, "grace_hours": 6})
+    expected = datetime.now(timezone.utc) + timedelta(hours=48)
+    assert abs(_deadline(survivor) - expected) < timedelta(minutes=1)
+
+
+def test_a_shortened_interval_never_puts_the_deadline_in_the_past():
+    survivor = register_and_login("survivor_a")
+    survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 168, "grace_hours": 6})
+    _set_last_checkin(hours_ago=30)
+
+    response = survivor.put("/api/checkin/schedule", json={"active": True, "interval_hours": 12, "grace_hours": 6})
+
+    assert abs(_deadline(survivor) - datetime.now(timezone.utc)) < timedelta(minutes=1)
+    assert response.json()["overdue"] is False  # the grace period still runs first
