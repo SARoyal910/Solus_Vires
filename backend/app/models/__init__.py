@@ -1,5 +1,5 @@
 from .auth import RecoveryCode, Session, User
-from .checkin import CheckinSchedule, PushSubscription, TrustedContact
+from .checkin import CheckinAlertLog, CheckinSchedule, PushSubscription, TrustedContact
 from .evidence import CaseProfile, EvidenceEntry
 
 __all__ = [
@@ -11,4 +11,5 @@ __all__ = [
     "TrustedContact",
     "PushSubscription",
     "CheckinSchedule",
+    "CheckinAlertLog",
 ]
