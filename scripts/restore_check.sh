@@ -7,7 +7,7 @@ set -eu
 backup="${1:?usage: restore_check.sh BACKUP.dump.age AGE_IDENTITY_FILE}"
 identity="${2:?usage: restore_check.sh BACKUP.dump.age AGE_IDENTITY_FILE}"
 cd "$(dirname "$0")/.."
-compose="docker compose -p solusvires-test -f docker-compose.test.yml"
+compose="docker compose -p ${SV_TEST_PROJECT:-solusvires-test} -f docker-compose.test.yml"
 trap '$compose down -v --remove-orphans >/dev/null 2>&1' EXIT
 $compose up -d --wait db-test
 db=$($compose ps -q db-test)

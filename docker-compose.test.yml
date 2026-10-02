@@ -1,6 +1,8 @@
 # Throwaway test stack. Always run through scripts/test.sh, which uses its own
 # compose project name so it can never touch the live containers or the
 # db_data volume. The database lives in tmpfs and vanishes when stopped.
+# Several checkouts can run side by side: give each its own project name
+# (SV_TEST_PROJECT / SV_PREVIEW_PROJECT) and preview port (PREVIEW_PORT).
 services:
   db-test:
     image: postgres:16-alpine
@@ -34,6 +36,7 @@ services:
   # Local preview of this branch: the site + API with a throwaway database.
   # Started by scripts/preview.sh under its own compose project, so test runs
   # (which tear down theirs) leave it alone. Never touches the live stack.
+  # Migrations run on start here on purpose: the database is new every time.
   preview:
     image: python:3.12-slim
     working_dir: /backend
@@ -45,7 +48,7 @@ services:
       - SITE_DIR=/site
       - CHECKIN_TOKEN_SECRET=preview-only
       - BETA_SIGNUPS_ENABLED=true
-      - PUBLIC_BASE_URL=http://127.0.0.1:8099
+      - PUBLIC_BASE_URL=http://127.0.0.1:${PREVIEW_PORT:-8099}
       - PIP_DISABLE_PIP_VERSION_CHECK=1
       - PIP_ROOT_USER_ACTION=ignore
     volumes:
@@ -53,7 +56,7 @@ services:
       - ./html:/site:ro
       - pip_cache:/root/.cache/pip
     ports:
-      - "127.0.0.1:8099:8000"
+      - "127.0.0.1:${PREVIEW_PORT:-8099}:8000"
     command: sh -c "pip install -q -r requirements.txt && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 volumes:
