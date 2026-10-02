@@ -35,14 +35,15 @@
       <div class="section-head">
         <h1>Set up your notes PIN</h1>
         <p>This PIN encrypts your notes in this browser before anything is sent or saved. It is separate from your account password and cannot be reset or recovered. If you forget it, these notes cannot be unlocked again by anyone, including us.</p>
-        <p>It is also the only thing protecting your notes if our database were ever stolen, so make it long. A few unrelated words works well, like <em>kettle-harbor-violet</em>. Write it down wherever you keep your recovery codes.</p>
+        <p><strong>This PIN is the only thing protecting your notes if our database is ever stolen.</strong> Make it long. A few unrelated words works well, like <em>kettle-harbor-violet</em>. Write it down wherever you keep your recovery codes.</p>
       </div>
       <article class="card">
         <form id="pin-setup-form">
           <label>
             Choose a PIN or passphrase (at least 12 characters)
-            <input type="password" name="pin" minlength="12" required autocomplete="off">
+            <input type="password" name="pin" minlength="12" required autocomplete="off" aria-describedby="pin-strength">
           </label>
+          <p id="pin-strength" class="pin-strength" aria-live="polite"></p>
           <label>
             Confirm PIN
             <input type="password" name="pin_confirm" minlength="12" required autocomplete="off">
@@ -64,8 +65,9 @@
             PIN
             <input type="password" name="pin" required autocomplete="off">
           </label>
-          <button type="submit" class="btn primary">Unlock</button>
+          <button type="submit" class="btn primary" id="pin-unlock-btn">Unlock</button>
           <p id="pin-unlock-status" class="status" aria-live="polite"></p>
+          <p class="hint">Unlocking can take a few seconds, longer on older phones.</p>
         </form>
       </article>
     </section>
@@ -77,6 +79,18 @@
       </div>
       <div class="actions">
         <button type="button" class="btn" id="lock-now-btn">Lock now</button>
+      </div>
+
+      <div class="notice" id="short-pin-notice" hidden>
+        Your PIN is shorter than 12 characters. Short PINs are much easier to guess if our database were ever stolen. A way to change your PIN isn't built yet; until it is, keep this device and your PIN private.
+      </div>
+
+      <div class="notice" id="first-save-warning" hidden>
+        <p><strong>Before you save anything:</strong> your PIN can't be reset or recovered by anyone, including us. If you forget it, everything saved here is lost for good. Write it down now, in the same safe place as your recovery codes.</p>
+        <label class="progress-check">
+          <input type="checkbox" id="first-save-ack">
+          I've written my PIN down somewhere safe.
+        </label>
       </div>
 
       <article class="card">

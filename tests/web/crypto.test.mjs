@@ -46,3 +46,21 @@ test("a tampered key-check is rejected, not accepted", async () => {
   bytes[0] ^= 1;
   assert.equal(await C.keyMatchesCheck(rightKey, { ...check, ciphertext: bytes.toString("base64") }), false);
 });
+
+test("PIN strength: under 12 characters is too short, and says how many more", () => {
+  assert.equal(C.pinStrength("short").level, "short");
+  assert.match(C.pinStrength("eleven-char").message, /1 more character needed/);
+});
+
+test("PIN strength: common weak shapes are called weak even when long", () => {
+  for (const pin of ["111111111111", "123456789012", "abcdefghijklmn", "mypassword2026", "qwertyuiopas", "aaaabbbbaaaa"]) {
+    assert.equal(C.pinStrength(pin).level, "weak", pin);
+  }
+});
+
+test("PIN strength: several unrelated words or 20+ characters is strong", () => {
+  assert.equal(C.pinStrength("kettle-harbor-violet").level, "strong");
+  assert.equal(C.pinStrength("tortuga verde lámpara").level, "strong");
+  assert.equal(C.pinStrength("Xq7#mP2!vR9zL4@nK8$w").level, "strong");
+  assert.equal(C.pinStrength("summer-garden").level, "ok");
+});

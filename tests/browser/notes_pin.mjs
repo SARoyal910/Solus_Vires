@@ -42,7 +42,7 @@ async function waitFor(page, fn, ms = 15000) {
 async function unlock(page, pin) {
   await page.$eval("#pin-unlock-form input[name=pin]", (el, v) => { el.value = v; }, pin);
   await page.$eval("#pin-unlock-form", (f) => f.requestSubmit());
-  await waitFor(page, async () => (await visible(page, "unlocked-view")) || !["", "Unlocking..."].includes(await statusText(page, "pin-unlock-status")));
+  await waitFor(page, async () => (await visible(page, "unlocked-view")) || !(await statusText(page, "pin-unlock-status")).startsWith("Unlocking") && (await statusText(page, "pin-unlock-status")) !== "");
   return (await visible(page, "unlocked-view")) ? "UNLOCKED" : await statusText(page, "pin-unlock-status");
 }
 const keyCheck = (page) => page.evaluate(async () => (await (await fetch("/api/evidence/salt")).json()).key_check);
@@ -54,21 +54,47 @@ const keyCheck = (page) => page.evaluate(async () => (await (await fetch("/api/e
   await waitFor(page, () => visible(page, "pin-setup-view"));
   check("new account sees PIN setup", await visible(page, "pin-setup-view"));
 
-  await page.$eval("#pin-setup-form input[name=pin]", (el) => { el.value = "short-pin"; });
+  await page.$eval("#pin-setup-form input[name=pin]", (el) => { el.value = "short-pin"; el.dispatchEvent(new Event("input", { bubbles: true })); });
+  check("strength hint says a short PIN is too short", (await statusText(page, "pin-strength")).startsWith("Too short: 3 more characters"));
   await page.$eval("#pin-setup-form input[name=pin_confirm]", (el) => { el.value = "short-pin"; });
   await page.$eval("#pin-setup-form", (f) => { f.noValidate = true; f.requestSubmit(); f.noValidate = false; });
   await waitFor(page, async () => (await statusText(page, "pin-setup-status")) !== "");
   check("PIN under 12 characters is refused", (await statusText(page, "pin-setup-status")) === "PIN is too short." && !(await visible(page, "unlocked-view")));
 
+  await page.$eval("#pin-setup-form input[name=pin]", (el) => { el.value = "kettle-harbor-violet"; el.dispatchEvent(new Event("input", { bubbles: true })); });
+  check("strength hint calls three unrelated words strong", (await page.$eval("#pin-strength", (el) => el.dataset.level)) === "strong");
   await page.$eval("#pin-setup-form input[name=pin]", (el, v) => { el.value = v; }, PIN);
   await page.$eval("#pin-setup-form input[name=pin_confirm]", (el, v) => { el.value = v; }, PIN);
   await page.$eval("#pin-setup-form", (f) => f.requestSubmit());
   check("setup unlocks the notes", await waitFor(page, () => visible(page, "unlocked-view")));
   check("key-check stored at setup", !!(await keyCheck(page)));
 
-  await page.click("#lock-now-btn");
+  // P2-A10: the no-recovery warning comes back before the first save.
+  check("empty vault shows the no-recovery warning again", await visible(page, "first-save-warning"));
+  await page.evaluate(() => { const f = document.getElementById("entry-form"); f.entry_date.value = "2026-09-30"; f.text.value = "first note"; f.requestSubmit(); });
+  await waitFor(page, async () => (await statusText(page, "entry-status")) !== "");
+  const savedBeforeAck = await page.evaluate(async () => (await (await fetch("/api/evidence/entries")).json()).length);
+  check("first save waits until the warning is acknowledged", savedBeforeAck === 0 && (await statusText(page, "entry-status")).includes("tick the box"));
+  await page.evaluate(() => { document.getElementById("first-save-ack").click(); document.getElementById("entry-form").requestSubmit(); });
+  check("after the tick the first save goes through", await waitFor(page, async () => (await page.$eval("#entries-list", (el) => el.textContent)).includes("first note")));
+  check("warning goes away once something is saved", !(await visible(page, "first-save-warning")));
+
+  await page.evaluate(() => document.getElementById("lock-now-btn").click());
+  check("locking wipes decrypted notes from the page", (await page.$eval("#entries-list", (el) => el.textContent)) === "");
+  const busy = await page.evaluate((pin) => {
+    const f = document.getElementById("pin-unlock-form");
+    f.pin.value = pin;
+    f.requestSubmit();
+    const b = document.getElementById("pin-unlock-btn");
+    return { disabled: b.disabled, text: b.textContent, status: document.getElementById("pin-unlock-status").textContent };
+  }, WRONG);
+  check("unlock shows an Unlocking… state with the button disabled", busy.disabled && busy.text === "Unlocking…" && busy.status.startsWith("Unlocking"));
+  await waitFor(page, async () => !(await statusText(page, "pin-unlock-status")).startsWith("Unlocking"));
+  check("button comes back after a failed unlock", await page.$eval("#pin-unlock-btn", (b) => !b.disabled && b.textContent === "Unlock"));
+
   check("wrong PIN on empty vault is rejected", (await unlock(page, WRONG)) === "Incorrect PIN.");
   check("right PIN unlocks", (await unlock(page, PIN)) === "UNLOCKED");
+  check("a 12+ character PIN gets no short-PIN notice", !(await visible(page, "short-pin-notice")));
 }
 
 // 2. Older account, PIN set before key-checks existed, nothing saved: PIN must be entered twice.
@@ -82,8 +108,23 @@ const keyCheck = (page) => page.evaluate(async () => (await (await fetch("/api/e
   await unlock(page, PIN);
   check("legacy: same PIN twice unlocks", (await unlock(page, PIN)) === "UNLOCKED");
   check("legacy: key-check written", !!(await keyCheck(page)));
-  await page.click("#lock-now-btn");
+  await page.evaluate(() => document.getElementById("lock-now-btn").click());
   check("legacy: afterwards a wrong PIN is rejected first time", (await unlock(page, WRONG)) === "Incorrect PIN.");
+}
+
+// 2b. Older account whose PIN is shorter than today's minimum: still unlocks, with a notice.
+{
+  const page = await freshUser();
+  await page.goto(`${BASE}/log.html`);
+  await page.evaluate(async () => {
+    const salt = EvidenceCrypto.generateSaltBase64();
+    const key = await EvidenceCrypto.deriveKey("123456", salt);
+    await fetch("/api/evidence/salt", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ salt, key_check: await EvidenceCrypto.makeKeyCheck(key) }) });
+  });
+  await page.goto(`${BASE}/log.html`);
+  await waitFor(page, () => visible(page, "pin-unlock-view"));
+  check("short legacy PIN still unlocks", (await unlock(page, "123456")) === "UNLOCKED");
+  check("short legacy PIN gets the 'shorter than 12' notice", await visible(page, "short-pin-notice"));
 }
 
 // 3. Older account with a saved note: verified against the note, then key-check backfilled.
@@ -105,6 +146,7 @@ const keyCheck = (page) => page.evaluate(async () => (await (await fetch("/api/e
   await waitFor(page, async () => (await page.$eval("#entries-list", (el) => el.textContent)).includes("saved before the upgrade"));
   check("legacy+data: old note still readable", (await page.$eval("#entries-list", (el) => el.textContent)).includes("saved before the upgrade"));
   check("legacy+data: key-check backfilled", !!(await keyCheck(page)));
+  check("legacy+data: no first-save warning when notes exist", !(await visible(page, "first-save-warning")));
 }
 
 await browser.close();

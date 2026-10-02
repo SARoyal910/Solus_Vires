@@ -13,6 +13,13 @@
 
   let cryptoKey = null;
   let autoLockTimer = null;
+  // True until anything (profile, entry, plan) has been saved. While it is,
+  // the no-recovery warning shows again and the first save waits for a tick
+  // (P2-A10, user review Marisol #5).
+  let vaultEmpty = true;
+
+  const firstSaveWarning = document.getElementById("first-save-warning");
+  const firstSaveAck = document.getElementById("first-save-ack");
 
   function showView(name) {
     for (const key in views) views[key].hidden = key !== name;
@@ -23,11 +30,34 @@
     autoLockTimer = setTimeout(lockNow, AUTO_LOCK_MS);
   }
 
+  // Locking forgets the key and wipes every decrypted thing from the page,
+  // so nothing readable is left in the DOM behind the PIN screen.
   function lockNow() {
     cryptoKey = null;
     pendingConfirmPin = null;
     if (autoLockTimer) clearTimeout(autoLockTimer);
+    document.getElementById("entries-list").textContent = "";
+    document.getElementById("profile-form").reset();
+    document.getElementById("short-pin-notice").hidden = true;
+    firstSaveWarning.hidden = true;
+    for (const id of ["profile-status", "entry-status"]) document.getElementById(id).textContent = "";
     showView("pinUnlock");
+  }
+
+  function setVaultEmpty(empty) {
+    vaultEmpty = empty;
+    firstSaveWarning.hidden = !empty;
+    if (!empty) firstSaveAck.checked = false;
+  }
+
+  // Returns false (and says why) when this would be the first save and the
+  // PIN warning hasn't been acknowledged yet.
+  function readyForFirstSave(status) {
+    if (!vaultEmpty || firstSaveAck.checked) return true;
+    status.textContent = "Before saving, tick the box above to confirm you've written your PIN down.";
+    firstSaveWarning.scrollIntoView({ block: "center" });
+    firstSaveAck.focus();
+    return false;
   }
 
   ["click", "keydown", "input"].forEach((evt) =>
@@ -56,6 +86,7 @@
   async function loadEntries() {
     const res = await api("/api/evidence/entries");
     const entries = await res.json();
+    if (entries.length) setVaultEmpty(false);
     const list = document.getElementById("entries-list");
     list.textContent = "";
     for (const entry of entries) {
@@ -90,6 +121,7 @@
     const res = await api("/api/evidence/case-profile");
     const profile = await res.json();
     if (!profile) return;
+    setVaultEmpty(false);
     try {
       const data = await EvidenceCrypto.decryptJSON(cryptoKey, profile.ciphertext, profile.iv);
       const form = document.getElementById("profile-form");
@@ -101,12 +133,41 @@
     }
   }
 
-  async function enterUnlocked() {
+  async function enterUnlocked(pinLength) {
+    setVaultEmpty(true);
+    document.getElementById("short-pin-notice").hidden = pinLength >= EvidenceCrypto.PIN_MIN_LENGTH;
     showView("unlocked");
     scheduleAutoLock();
     await loadProfile();
     await loadEntries();
   }
+
+  // Deriving the key takes 600,000 PBKDF2 rounds: a second or more on older
+  // phones. Show that something is happening so it doesn't look frozen.
+  function setBusy(form, busy, label) {
+    const button = form.querySelector("button[type=submit]");
+    if (busy) {
+      button.dataset.label = button.dataset.label || button.textContent;
+      button.textContent = label;
+    } else if (button.dataset.label) {
+      button.textContent = button.dataset.label;
+    }
+    button.disabled = busy;
+    form.setAttribute("aria-busy", String(busy));
+  }
+
+  const pinStrengthHint = document.getElementById("pin-strength");
+  document.querySelector("#pin-setup-form input[name=pin]").addEventListener("input", (event) => {
+    const value = event.target.value;
+    if (!value) {
+      pinStrengthHint.textContent = "";
+      delete pinStrengthHint.dataset.level;
+      return;
+    }
+    const result = EvidenceCrypto.pinStrength(value);
+    pinStrengthHint.textContent = result.message;
+    pinStrengthHint.dataset.level = result.level;
+  });
 
   // Zero-knowledge encryption means the server can never confirm a PIN is
   // correct; the browser has to. Accounts set up with the current page have a
@@ -180,7 +241,9 @@
       return;
     }
     const salt = EvidenceCrypto.generateSaltBase64();
-    status.textContent = "Setting up...";
+    status.textContent = "Setting up… this can take a few seconds.";
+    setBusy(form, true, "Setting up…");
+    const pinLength = form.pin.value.length;
     try {
       const key = await EvidenceCrypto.deriveKey(form.pin.value, salt);
       const key_check = await EvidenceCrypto.makeKeyCheck(key);
@@ -199,10 +262,13 @@
       if (!res.ok) throw new Error("salt not saved");
       cryptoKey = key;
       form.reset();
+      pinStrengthHint.textContent = "";
       status.textContent = "";
-      await enterUnlocked();
+      await enterUnlocked(pinLength);
     } catch (e) {
       status.textContent = "Unable to set up your PIN right now.";
+    } finally {
+      setBusy(form, false);
     }
   });
 
@@ -210,7 +276,8 @@
     event.preventDefault();
     const status = document.getElementById("pin-unlock-status");
     const form = event.target;
-    status.textContent = "Unlocking...";
+    status.textContent = "Unlocking…";
+    setBusy(form, true, "Unlocking…");
     try {
       const res = await api("/api/evidence/salt");
       const data = await res.json();
@@ -236,10 +303,12 @@
       }
       cryptoKey = key;
       status.textContent = "";
-      await enterUnlocked();
+      await enterUnlocked(pin.length);
     } catch (e) {
       cryptoKey = null;
       status.textContent = "Unable to unlock right now.";
+    } finally {
+      setBusy(form, false);
     }
   });
 
@@ -247,13 +316,16 @@
     event.preventDefault();
     const status = document.getElementById("profile-status");
     const form = event.target;
+    if (!readyForFirstSave(status)) return;
     const blob = await EvidenceCrypto.encryptJSON(cryptoKey, {
       name: form.name.value,
       relationship: form.relationship.value,
       notes: form.notes.value,
     });
     try {
-      await api("/api/evidence/case-profile", { method: "PUT", body: JSON.stringify(blob) });
+      const res = await api("/api/evidence/case-profile", { method: "PUT", body: JSON.stringify(blob) });
+      if (!res.ok) throw new Error("not saved");
+      setVaultEmpty(false);
       status.textContent = "Saved.";
     } catch (e) {
       status.textContent = "Unable to save right now.";
@@ -264,12 +336,15 @@
     event.preventDefault();
     const status = document.getElementById("entry-status");
     const form = event.target;
+    if (!readyForFirstSave(status)) return;
     const blob = await EvidenceCrypto.encryptJSON(cryptoKey, {
       entry_date: form.entry_date.value,
       text: form.text.value,
     });
     try {
-      await api("/api/evidence/entries", { method: "POST", body: JSON.stringify(blob) });
+      const res = await api("/api/evidence/entries", { method: "POST", body: JSON.stringify(blob) });
+      if (!res.ok) throw new Error("not saved");
+      setVaultEmpty(false);
       form.reset();
       status.textContent = "Added.";
       await loadEntries();

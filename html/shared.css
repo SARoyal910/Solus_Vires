@@ -741,6 +741,44 @@ textarea {
   font-weight: 700;
 }
 
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* Notes PIN strength hint (log.html, P2-A10). */
+.pin-strength {
+  min-height: 1.3rem;
+  margin: -0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.pin-strength[data-level="short"],
+.pin-strength[data-level="weak"] {
+  color: var(--warn-ink);
+}
+
+.pin-strength[data-level="strong"] {
+  color: var(--safe-ink);
+}
+
+.notice p {
+  margin: 0 0 0.5rem;
+}
+
+.notice .progress-check {
+  margin-top: 0.5rem;
+  color: inherit;
+}
+
+.btn:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
 .recovery-codes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
