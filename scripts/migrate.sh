@@ -32,4 +32,17 @@ docker compose run --rm --no-TTY api sh -c '
     *) echo "migrate: the database is not at the newest migration" >&2; exit 1 ;;
   esac
 '
+# If the api is already running from before these migrations (for example a
+# deploy that forgot this step, failed `up --wait`, and is now being fixed),
+# its health check has already recorded "unhealthy" against the old schema,
+# and `up -d --wait` would read that stale verdict and fail at once. Restart
+# it so the check starts fresh against the migrated database.
+api_id=$(docker compose ps -q api 2>/dev/null || true)
+if [ -n "$api_id" ]; then
+  health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$api_id" 2>/dev/null || true)
+  if [ "$health" = "unhealthy" ]; then
+    echo "== the running api started before these migrations; restarting it so its health check runs again"
+    docker compose restart api
+  fi
+fi
 echo "== migrations done. Next: docker compose up -d --wait"

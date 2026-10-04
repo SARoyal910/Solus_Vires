@@ -90,14 +90,29 @@ async function exitPage({ openThrows = false } = {}) {
 {
   const page = await browser.newPage();
   for (const [lang, path, word] of [["en", "/index.html", "Esc twice"], ["es", "/es/", "Esc dos veces"]]) {
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.goto(BASE + path, { waitUntil: "load" });
-    const wide = await page.evaluate(() => {
+    const measure = () => page.evaluate(() => {
       const h = document.getElementById("exit-hint");
-      return { shown: !!h && h.getBoundingClientRect().width > 0, text: h ? h.textContent : "", header: document.querySelector("body > header").getBoundingClientRect().height };
+      const links = [...document.querySelectorAll("header nav a")];
+      return {
+        shown: !!h && h.getBoundingClientRect().width > 0,
+        text: h ? h.textContent : "",
+        header: document.querySelector("body > header").getBoundingClientRect().height,
+        trimmed: links.filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent.trim()),
+      };
     });
-    check(`${lang} 1280px: "Press Esc twice" hint visible beside Quick Exit`, wide.shown && wide.text.includes(word), wide.text);
-    check(`${lang} 1280px: header stays one row`, wide.header < 70, `${wide.header}px`);
+    await page.setViewport({ width: 1440, height: 800 });
+    await page.goto(BASE + path, { waitUntil: "load" });
+    const wide = await measure();
+    check(`${lang} 1440px: "Press Esc twice" hint visible beside Quick Exit`, wide.shown && wide.text.includes(word), wide.text);
+    check(`${lang} 1440px: header stays one row, no label trimmed`, wide.header < 70 && wide.trimmed.length === 0, `${wide.header}px ${JSON.stringify(wide.trimmed)}`);
+    // Desktop widths where the links must fit without the hint. Fonts differ
+    // by platform (Linux fallbacks run wide), so every band is checked.
+    for (const w of [1025, 1199, 1200, 1280, 1399]) {
+      await page.setViewport({ width: w, height: 800 });
+      await page.goto(BASE + path, { waitUntil: "load" });
+      const mid = await measure();
+      check(`${lang} ${w}px: header one row, hint not in the header, no label trimmed`, mid.header < 70 && !mid.shown && mid.trimmed.length === 0, `${mid.header}px ${JSON.stringify(mid.trimmed)}`);
+    }
     for (const w of [360, 390]) {
       await page.setViewport({ width: w, height: 800 });
       await page.goto(BASE + path, { waitUntil: "load" });

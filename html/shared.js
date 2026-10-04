@@ -94,7 +94,7 @@ if (siteHeader && primaryNav) {
       toggle.focus();
     }
   });
-  const wide = window.matchMedia("(min-width: 921px)");
+  const wide = window.matchMedia("(min-width: 1025px)");
   wide.addEventListener("change", (event) => {
     if (event.matches) {
       setMenuOpen(false);

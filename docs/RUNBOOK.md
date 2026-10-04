@@ -126,7 +126,7 @@ exits with an error, and `docker compose ps` shows `(unhealthy)`. The reason
 is in `docker inspect --format '{{json .State.Health}}' solusvires_api`
 ("database schema is [...], this code needs [...]: run scripts/migrate.sh").
 The public pages keep working (nginx doesn't wait for the api); fix it with
-`scripts/migrate.sh` then `docker compose up -d --wait`. Note that plain
+`scripts/migrate.sh` then `docker compose up -d --wait` (migrate.sh restarts an api that is already running and unhealthy, so the health check is judged again against the migrated database rather than the stale verdict). Note that plain
 `docker compose up -d --build` (the old step) returns success without
 waiting; that's why the steps above use `--wait`.
 
