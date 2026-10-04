@@ -4,9 +4,8 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 
 ## Waiting on the owner
 
-**To ship what's on `phase2`** (merged and tested 2026-10-02, not deployed)
-- [ ] Push `phase2`, check the new CI jobs pass on GitHub (they have only been run locally), merge to `main`
-- [ ] Deploy on the droplet following `docs/RUNBOOK.md` "Next deploy". Before pulling: set `RECOVERY_CODE_PEPPER` in `.env` (never change it afterwards) and make sure `CHECKIN_TOKEN_SECRET` and `POSTGRES_PASSWORD` are real values, or the API will refuse to start and check-in alerts will stop
+**After the 2026-10-04 deploy** (`main` at `2b81477` is live)
+- [x] Pushed, CI green, merged to `main`, deployed 2026-10-04
 - [ ] In Cloudflare, confirm Rocket Loader, Email Address Obfuscation, and Web Analytics are off, and that no rule caches HTML
 - [ ] Run the checks that need a real phone (`docs/RUNBOOK.md` "Checks that need a real phone"), including a real push and a real Brevo email (P2-E6)
 - [ ] Create the UptimeRobot and Healthchecks.io checks, set `HEALTHCHECK_PING_URL`, and run the forced test (P2-F2)

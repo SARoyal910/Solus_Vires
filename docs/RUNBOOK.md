@@ -146,7 +146,12 @@ downgrading first, with the *new* image still in place:
 
 ### Next deploy: what changes on the droplet (Phase 2 Sprints 2-5)
 
-Do this once, the first time `main` includes P2-A15 and the Lane A hardening
+**Done 2026-10-04** (`main` at `2b81477`): pepper set, database password
+rotated, migrations 0004 → 0007, smoke green. Kept for the record; the live
+checkout is `/root/solusvires` (`/srv/solusvires` is an old, unused copy).
+From now on a deploy is `scripts/deploy.sh` ("Deploying" above).
+
+This was a one-time change, the first time `main` included P2-A15 and the Lane A hardening
 work. It changes how deploys work, adds required secrets, and runs new
 migrations.
 

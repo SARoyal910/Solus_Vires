@@ -2,7 +2,7 @@
 
 The one status page: what exists and is live right now. Detail lives in each feature's own doc; Phase 2 work in progress is tracked ticket by ticket in `docs/PHASE2_PLAN.md`.
 
-**Last verified against production:** 2026-09-26, `main` at `83d1f08` on the droplet (live header probe green on all 21 checked paths, CI green).
+**Last verified against production:** 2026-10-04, `main` at `2b81477` on the droplet (smoke test green from the droplet and from the Mac; CSP, `/plain/`, manifest and `/api/health` confirmed live).
 
 ## Live on solusvires.com
 
@@ -33,9 +33,9 @@ The one status page: what exists and is live right now. Detail lives in each fea
 - No access logs in nginx or the API; Docker logs size-capped; Cloudflare Web Analytics disabled (it had been injecting a tracker)
 - Every hotline, number, and organization checked against its own website; sources at the bottom of each page
 
-## On the `phase2` branch, not yet deployed
+**Phase 2 — Sprints 2–6 code (deployed 2026-10-04, `main` at `2b81477`)**
 
-Merged and tested locally on 2026-10-02. Nothing here is live until the next deploy, which has one-time extra steps: `docs/RUNBOOK.md` "Next deploy".
+Merged and tested 2026-10-02, deployed by the owner 2026-10-04 following `docs/RUNBOOK.md` "Next deploy" (new `RECOVERY_CODE_PEPPER`, database password rotated, migrations 0005–0007 applied, no source bind mount, smoke green).
 
 **Phones**
 - The header is one row on phones (brand, menu button, Quick Exit); the page links open from the menu button
@@ -73,7 +73,7 @@ Merged and tested locally on 2026-10-02. Nothing here is live until the next dep
 - Operator email on repeated rate-limit hits; optional heartbeat ping after each alert pass
 - Review request packets drafted for legal counsel and an advocacy organization (not sent)
 
-**Tests on `phase2`:** 127 backend, 21 browser-side unit tests, and five headless-Chrome suites (Notes PIN 29, vault 28, site UI 41, offline copy 21, and a click-through of every page under the real policy with zero violations). The new CI jobs have not yet run on GitHub.
+**Tests on `main`:** 127 backend, 21 browser-side unit tests, and five headless-Chrome suites (Notes PIN 29, vault 28, site UI 41, offline copy 21, and a click-through of every page under the real policy with zero violations). All five CI jobs are green on GitHub.
 
 ## Verified vs. not yet verified
 
