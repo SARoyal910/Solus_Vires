@@ -88,9 +88,10 @@ jobs:
           SV_NGINX_URL: https://localhost
           SV_API_CONTAINER: solusvires_api
           CHROME: /usr/bin/google-chrome
-      - name: Plain view under nginx, including the no-JavaScript /plain/ pages (P2-E4)
+      - name: Header, Quick Exit and plain view under nginx, including the no-JavaScript /plain/ pages (P2-E1, E4)
         run: node tests/browser/site_ui.mjs
         env:
+          PREVIEW_URL: https://localhost
           SV_NGINX_URL: https://localhost
           CHROME: /usr/bin/google-chrome
       - if: failure()

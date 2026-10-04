@@ -55,7 +55,10 @@ async function exitPage({ openThrows = false } = {}) {
   check("button: the new tab gets no opener or referrer", opened.length === 1 && /noopener/.test(opened[0][2]) && /noreferrer/.test(opened[0][2]));
   check("button: this tab is replaced by a neutral site", page.url() === "https://www.google.com/");
   check("button: replaced, not pushed (Back doesn't return here)", (await page.evaluate(() => history.length)) === historyBefore);
-  check("button: the neutral site isn't told where the visitor came from", outside.length > 0 && outside.every((r) => r.referer === ""), JSON.stringify(outside.map((r) => r.referer)));
+  // On a machine with real internet access the neutral site may redirect to
+  // itself and name itself as the referrer; what must never appear is us.
+  const origin = new URL(BASE).origin;
+  check("button: the neutral site isn't told where the visitor came from", outside.length > 0 && outside.every((r) => !r.referer.startsWith(origin) && !r.referer.includes("solusvires")), JSON.stringify(outside.map((r) => r.referer)));
   await ctx.close();
 }
 {
