@@ -6,9 +6,11 @@ How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
 ## Where things run
 
 - **Production:** a DigitalOcean droplet behind Cloudflare. It runs the
-  Docker Compose stack (nginx, api, Postgres) from a git checkout of **`main`**
-  and is updated by hand with `git pull`. Visitors reach it only through
-  Cloudflare.
+  Docker Compose stack (nginx, api, Postgres) from the git checkout of
+  **`main`** at **`/root/solusvires`**, updated with `scripts/deploy.sh`.
+  Visitors reach it only through Cloudflare. (`/srv/solusvires` on the
+  droplet is an old copy from 2025 that nothing uses; safe to delete.)
+  Secrets live in `/root/solusvires/.env`, which is not in git.
 - **The owner's Mac:** a local copy of the same stack for development and
   testing. Changing it changes nothing on solusvires.com.
   nginx requires Cloudflare's client certificate (Authenticated Origin
@@ -85,7 +87,8 @@ On the Mac:
 1. In the worktree: `scripts/test.sh` and `node --test tests/web/` are green.
 2. Bring the work into `main` and push:
    `git checkout main && git merge --ff-only phase2 && git push origin main`
-   (merge into `dev` too if you keep it as the integration branch).
+   (`dev` is no longer used; `phase2` is the working branch and `main` is
+   what the droplet runs).
 
 On the droplet:
 3. `cd` to the checkout, `git status` (must be clean), `git pull origin main`.
@@ -363,3 +366,37 @@ On the droplet, only after a rehearsal has worked. Stop the api first so nothing
 `docker compose stop api`, then
 `age -d -i KEY FILE.dump.age | docker exec -i solusvires_db pg_restore -U solusvires -d solusvires --clean --if-exists --no-owner`,
 then `docker compose start api` and run the probe.
+
+## Working on the droplet for the first time
+
+- **Getting a shell:** `ssh root@<droplet-ip>` from the Mac, or the
+  "Console" button on the droplet's page in the DigitalOcean dashboard.
+  Then `cd /root/solusvires`; every command in this file runs from there.
+- **The web console and pasting:** pasting sometimes drops or changes
+  characters, and text copied from a chat or a document can arrive with
+  curly quotes (`‘ ’`), which the shell and Postgres reject with a `syntax
+  error`. Prefer commands that generate a value on the droplet (for example
+  `openssl rand -hex 32`) over pasting one in, and type quotes by hand if a
+  pasted command fails oddly.
+- **nano:** `nano .env` opens the file. Arrow keys move, typing inserts,
+  `Ctrl+O` then `Enter` saves, `Ctrl+X` exits (`Y` if it asks to save).
+  There is no mouse.
+- **Changing a setting:** edit `.env`, then `docker compose up -d --wait`
+  so the api restarts with it. `.env` is read only at container start.
+- **Changing the database password:** `.env` alone is not enough, because
+  Postgres keeps the password it was created with. Do both in one go:
+  `NEWPW=$(openssl rand -hex 32) && docker compose exec db psql -U solusvires -d solusvires -c "ALTER USER solusvires PASSWORD '$NEWPW';" && sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$NEWPW|" .env && grep '^POSTGRES_PASSWORD=' .env`
+  then `docker compose up -d --wait` straight away. Done 2026-10-04.
+- **Secrets in `.env` to keep in the password manager:** `POSTGRES_PASSWORD`,
+  `CHECKIN_TOKEN_SECRET` (changing it breaks every invite link already sent),
+  `RECOVERY_CODE_PEPPER` (changing it breaks every recovery code ever issued).
+  Never paste their values into a chat, an issue, or a commit.
+
+## Expected console noise
+
+On any page, while signed out, the browser console shows one red line:
+`Failed to load resource: the server responded with a status of 401` for
+`/api/auth/me`. The page asks whether the visitor is signed in and 401 is
+the normal answer when they aren't; the page then shows the signed-out
+state. It is not an error. A real problem looks like `Refused to load…` or
+`Refused to execute…` naming the Content Security Policy, or a 5xx status.

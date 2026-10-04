@@ -26,12 +26,15 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 - [ ] Move `~/solusvires-backup-key.txt` off the Mac (password manager or USB); it's the only key that opens the backups. Keep a copy of `RECOVERY_CODE_PEPPER` with it
 - [ ] Get backups off the droplet: DigitalOcean droplet backups, or periodically `scp` a `.dump.age` to the Mac
 - [ ] Check the Cloudflare dashboard for a Workers or Pages project left over from the deleted `wrangler.jsonc`
+- [ ] On the droplet, delete the old unused copy at `/srv/solusvires` (the live site runs from `/root/solusvires`)
+- [ ] The local `dev` branch and the `~/Projects/solusvires` checkout are stale; work from `~/Projects/solusvires-phase2` (`phase2`), and delete or reset `dev` when convenient
 
 **Blocked until the reviews come back**
 - Work through the feedback (P2-C7), the retention policy (P2-F6), reopening sign-ups (P2-B10), freezing `DESIGN2.md`
 
 **Known gaps, not planned yet** (from `docs/THREAT_MODEL.md` §6)
 - A way to change the Notes PIN; a "where you're signed in" view; a cap on invite emails per account
+- Cosmetic: the signed-out `/api/auth/me` check logs a 401 in the browser console (`docs/RUNBOOK.md` "Expected console noise")
 
 ## Deliberately not planned
 

@@ -98,3 +98,9 @@ Also intentionally not built (see `docs/TODO.md` for the reasons): real-time loc
 ## Location and Emergency Features
 
 Location tracking must be explicit, visible, revocable, temporary, and survivor-controlled. It must never run as hidden monitoring. Emergency-response language must not imply 911 dispatch unless the system has a real, tested integration or staffed response partnership.
+
+## Branches and checkouts (2026-10-04)
+
+- `main`: what the droplet runs, from `/root/solusvires`. Deploy with `scripts/deploy.sh`.
+- `phase2`: the working branch; merged into `main` by fast-forward when CI is green. `dev` is stale and unused.
+- On the Mac, `~/Projects/solusvires-phase2` is the `phase2` worktree; `~/Projects/solusvires` is the old `dev` checkout.

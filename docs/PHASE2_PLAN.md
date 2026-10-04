@@ -15,7 +15,7 @@
 - **Closes** names the review finding(s) a ticket resolves (`H1`, `M4`, `L2` from the engineering review; `U-<n>` for row *n* of the "fix this month" table in the user review).
 - **Size:** S = a day or less, M = 2-4 days, L = a week+. One part-time developer is assumed, so sprints are defined by *exit gates*, not calendar dates.
 - **Every code ticket ships with a test** unless it says otherwise. A ticket without its test is not done.
-- A ticket is **Done** when: merged to `dev`, test green in CI, deployed, and (if it touches the live site) confirmed by the smoke probe.
+- A ticket is **Done** when: merged to `main` (via `phase2`; `dev` is no longer used), test green in CI, deployed, and (if it touches the live site) confirmed by the smoke probe.
 
 ---
 
