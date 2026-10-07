@@ -27,7 +27,7 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 - [ ] Get backups off the droplet: DigitalOcean droplet backups, or periodically `scp` a `.dump.age` to the Mac
 - [ ] Check the Cloudflare dashboard for a Workers or Pages project left over from the deleted `wrangler.jsonc`
 - [x] On the droplet, delete the old unused copy at `/srv/solusvires` (done 2026-10-07; the live site runs from `/root/solusvires`)
-- [ ] The local `dev` branch and the `~/Projects/solusvires` checkout are stale; work from `~/Projects/solusvires-phase2` (`phase2`), and delete or reset `dev` when convenient
+- [x] One checkout again: `~/Projects/solusvires` is on `main` with `phase2` as the working branch; the extra worktree is gone (2026-10-07). The stale local `dev` branch and the merged `lane/*` branches can be deleted with `git branch -D dev lane/a lane/b lane/c` when convenient
 
 **Blocked until the reviews come back**
 - Work through the feedback (P2-C7), the retention policy (P2-F6), reopening sign-ups (P2-B10), freezing `DESIGN2.md`

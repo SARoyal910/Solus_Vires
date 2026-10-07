@@ -107,4 +107,4 @@ Capacity estimates, single points of failure, service-level targets, the staged 
 
 - `main`: what the droplet runs, from `/root/solusvires`. Deploy with `scripts/deploy.sh`.
 - `phase2`: the working branch; merged into `main` by fast-forward when CI is green. `dev` is stale and unused.
-- On the Mac, `~/Projects/solusvires-phase2` is the `phase2` worktree; `~/Projects/solusvires` is the old `dev` checkout.
+- On the Mac there is one checkout, `~/Projects/solusvires`, normally on `main`; switch to `phase2` to work. (The separate `solusvires-phase2` worktree was removed 2026-10-07.)

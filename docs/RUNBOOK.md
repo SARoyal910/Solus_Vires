@@ -10,17 +10,20 @@ How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
   **`main`** at **`/root/solusvires`**, updated with `scripts/deploy.sh`.
   Visitors reach it only through Cloudflare.
   Secrets live in `/root/solusvires/.env`, which is not in git.
-- **The owner's Mac:** a local copy of the same stack for development and
-  testing. Changing it changes nothing on solusvires.com.
-  nginx requires Cloudflare's client certificate (Authenticated Origin
-  Pulls), so direct `https://localhost` requests to that stack are refused;
-  use `scripts/preview.sh` for local viewing.
-- **Phase 2 work** happens in the `~/Projects/solusvires-phase2` worktree
-  (branch `phase2`). Preview with `scripts/preview.sh`
+- **The owner's Mac:** `~/Projects/solusvires`, one checkout, usually on
+  `main`, with `phase2` as the working branch for new work. It runs a local
+  copy of the same stack for development (with
+  `docker-compose.override.yml` copied from the example so the api
+  live-reloads; the file is gitignored). Changing it changes nothing on
+  solusvires.com. nginx requires Cloudflare's client certificate
+  (Authenticated Origin Pulls), so direct `https://localhost` requests to
+  that stack are refused; use `scripts/preview.sh` for local viewing
   (http://127.0.0.1:8099, throwaway database). Test with `scripts/test.sh`.
   A second checkout can run its own at the same time:
   `SV_TEST_PROJECT=sv-x scripts/test.sh`,
   `SV_PREVIEW_PROJECT=sv-x-preview PREVIEW_PORT=8130 scripts/preview.sh`.
+  (The separate `~/Projects/solusvires-phase2` worktree used during Phase 2
+  was removed 2026-10-07.)
 
 ## Cloudflare settings the site depends on
 
