@@ -38,6 +38,26 @@
     card.hidden = !card.hidden;
   });
 
+  // Sign in is the default; the create-account form is one link away.
+  // Showing both at once read as two equal choices, when nearly everyone
+  // arriving here already has an account.
+  const loginCard = document.getElementById("login-card");
+  const registerCard = document.getElementById("register-card");
+  const showRegister = (on) => {
+    registerCard.hidden = !on;
+    loginCard.hidden = on;
+    (on ? registerCard : loginCard).querySelector("input").focus();
+  };
+  document.getElementById("show-register-link").addEventListener("click", (event) => {
+    event.preventDefault();
+    showRegister(true);
+  });
+  document.getElementById("show-login-link").addEventListener("click", (event) => {
+    event.preventDefault();
+    showRegister(false);
+  });
+  if (location.hash === "#create-account") showRegister(true);
+
   document.getElementById("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const status = document.getElementById("login-status");
@@ -110,6 +130,9 @@
 
   document.getElementById("codes-continue-btn").addEventListener("click", () => {
     showLoggedOut();
+    // The new account signs in next, so land on the sign-in card.
+    showRegister(false);
+    document.getElementById("login-form").username.value = document.getElementById("register-form").username.value;
   });
 
   document.getElementById("recover-form").addEventListener("submit", async (event) => {

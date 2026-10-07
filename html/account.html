@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/shared.css">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
   <script src="/theme.js"></script>
 </head>
 <body>
@@ -36,9 +38,9 @@
     </div>
 
     <section id="logged-out-view" hidden>
-      <div class="grid two">
-        <article class="card">
-          <h2>Log in</h2>
+      <div class="auth-switch">
+        <article class="card" id="login-card">
+          <h2>Sign in</h2>
           <form id="login-form">
             <label>
               Username
@@ -48,13 +50,17 @@
               Password
               <input type="password" name="password" autocomplete="current-password" required>
             </label>
-            <button type="submit" class="btn primary">Log in</button>
+            <button type="submit" class="btn primary">Sign in</button>
             <p id="login-status" class="status" aria-live="polite"></p>
           </form>
-          <p><button type="button" class="btn" id="show-recover-btn">Forgot password?</button></p>
+          <p class="auth-links">
+            <a href="#create-account" id="show-register-link">Create an account</a>
+            <span aria-hidden="true"> · </span>
+            <button type="button" class="link-btn" id="show-recover-btn">Forgot password?</button>
+          </p>
         </article>
 
-        <article class="card">
+        <article class="card" id="register-card" hidden>
           <h2>Create an account</h2>
           <p>Accounts are invite-only for now, while the site is reviewed by legal and domestic-violence advocacy experts. Every resource page stays open to everyone, no account needed.</p>
           <form id="register-form">
@@ -73,6 +79,7 @@
             <button type="submit" class="btn primary">Create account</button>
             <p id="register-status" class="status" aria-live="polite"></p>
           </form>
+          <p class="auth-links"><a href="#sign-in" id="show-login-link">Already have an account? Sign in</a></p>
         </article>
       </div>
 

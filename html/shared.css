@@ -1573,3 +1573,11 @@ html.theme-plain .reveal-ready .section-head {
     transform: none !important;
   }
 }
+
+/* Account page: one auth card at a time (sign in by default). */
+.auth-switch { max-width: 30rem; margin: 0 auto; }
+.auth-links { margin-top: 0.9rem; font-size: 0.95rem; color: var(--muted, inherit); }
+.link-btn {
+  background: none; border: 0; padding: 0; margin: 0;
+  color: inherit; font: inherit; text-decoration: underline; cursor: pointer;
+}

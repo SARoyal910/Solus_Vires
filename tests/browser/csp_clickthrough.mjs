@@ -179,7 +179,10 @@ async function walkAll(page, label) {
   await page.setViewport({ width: 1280, height: 900 });
   await go(page, "/account.html", "setup");
   const user = "csp_" + crypto.randomBytes(4).toString("hex");
-  // Through the real forms, so account.js runs under the policy.
+  // Through the real forms, so account.js runs under the policy. Sign in is
+  // the default view; the create-account form is behind a link.
+  await click(page, "#show-register-link");
+  await page.waitForFunction(() => !document.getElementById("register-card").hidden);
   await page.evaluate((u, p) => {
     const f = document.getElementById("register-form");
     f.username.value = u; f.password.value = p; f.requestSubmit();
