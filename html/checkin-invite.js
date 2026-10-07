@@ -69,6 +69,7 @@
       document.getElementById("username-accepted").textContent = info.survivor_username;
       document.getElementById("already-subscribed-note").hidden = info.subscribed_devices === 0;
       document.getElementById("ios-note").hidden = !(isIOS() && !isStandalone());
+      renderAlert(info);
       showState("accepted");
     } else if (info.status === "declined") {
       document.getElementById("username-declined").textContent = info.survivor_username;
@@ -80,6 +81,47 @@
       showState("invalid");
     }
   }
+
+  // The alert the contact is being asked to act on (P3-I1), if there is one.
+  function renderAlert(info) {
+    const box = document.getElementById("alert-now");
+    const alert = info.alert;
+    if (!alert) {
+      box.hidden = true;
+      return;
+    }
+    for (const el of box.querySelectorAll(".alert-username")) el.textContent = info.survivor_username;
+    const hours = alert.hours_overdue;
+    const overdue = hours < 1 ? "less than an hour" : hours === 1 ? "about an hour" : `about ${hours} hours`;
+    const nth = alert.alert_number === 1 ? "This is the first alert." : `This is alert number ${alert.alert_number}.`;
+    document.getElementById("alert-now-summary").textContent =
+      `${info.survivor_username} is ${overdue} past their check-in time. ${nth} It repeats every ${alert.repeat_hours} hours until they check in.`;
+    const noteBlock = document.getElementById("alert-note-block");
+    noteBlock.hidden = !alert.note;
+    document.getElementById("alert-note").textContent = alert.note || "";
+    const ackState = document.getElementById("alert-ack-state");
+    ackState.textContent = alert.acknowledged_by === 0
+      ? "Nobody has said they're on it yet."
+      : alert.acknowledged_by === 1
+        ? "One contact has said they're on it."
+        : `${alert.acknowledged_by} contacts have said they're on it.`;
+    box.hidden = false;
+  }
+
+  document.getElementById("ack-btn")?.addEventListener("click", async () => {
+    const status = document.getElementById("ack-status");
+    const button = document.getElementById("ack-btn");
+    status.textContent = "Letting the other contacts know...";
+    button.disabled = true;
+    try {
+      await api(`/api/checkin/invite/${encodeURIComponent(token)}/ack`, { method: "POST" });
+      status.textContent = "Thank you. The other contacts can now see that someone is on it.";
+      await loadInvite();
+    } catch (e) {
+      status.textContent = e.message || "Something went wrong. Try again.";
+      button.disabled = false;
+    }
+  });
 
   document.getElementById("accept-btn")?.addEventListener("click", async () => {
     const status = document.getElementById("respond-status");

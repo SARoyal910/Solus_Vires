@@ -77,7 +77,7 @@
             <li>Your notes, private profile, and safety plan, only as encrypted data we can't read</li>
             <li>Photos or screenshots you attach to a note, only as encrypted data we can't read. Before a photo is locked, your browser removes the hidden details saved inside it, such as where it was taken. The date it was taken is kept, inside the encrypted part</li>
             <li>When your account was created and when you last logged in</li>
-            <li>A login cookie while you're signed in (it expires after 14 days)</li>
+            <li>A login cookie while you're signed in (it expires after 14 days), and for each signed-in device the kind of browser and device ("Safari on iPhone"), so you can see where you're signed in. Never the full browser details or where the device is.</li>
           </ul>
         </article>
         <article class="card">
@@ -85,6 +85,8 @@
           <ul>
             <li>Each trusted contact's nickname and email address, and whether they accepted</li>
             <li>Your schedule and when you last checked in</li>
+            <li>If you write one, your message to your contacts. This one is different from your notes: we keep it scrambled in the database, but the server can unscramble it, because it has to put it in an alert email. Treat it as something we could read.</li>
+            <li>While alerts are going out, how many contacts have pressed "I've got this" (a count, not who)</li>
             <li>For contacts who turn on notifications, a technical address for their device (no name or location), when it last accepted an alert, and when it stopped working</li>
             <li>A history of alerts sent for you: when, which kind (an alert or an "all clear"), and how many contacts, emails, and notifications. Counts only, not who or what was said. It's kept for 90 days, you can clear it at any time, and it's deleted with your account</li>
           </ul>
@@ -106,7 +108,7 @@
           <ul>
             <li>That an account with your username exists, and when it was created and last used</li>
             <li>Your trusted contacts' nicknames and email addresses</li>
-            <li>Your check-in schedule and times, and the last 90 days of alert history (unless you cleared it)</li>
+            <li>Your check-in schedule and times, your message to your contacts if you wrote one, and the last 90 days of alert history (unless you cleared it)</li>
             <li>How many notes and photos you have, how large each photo is, and when they were saved (not what they say or show)</li>
             <li>Whether you've saved a safety plan, and when it was last changed (not what's in it)</li>
             <li>Messages sent through the contact form, which are in our email inbox, not on the site</li>

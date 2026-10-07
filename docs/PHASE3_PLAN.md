@@ -32,7 +32,7 @@ Everything below is judged against the three constraints in `SCALE.md` §1 (priv
 |---|---|---|---|---|
 | D10 | Publish operational evidence (uptime, alert delivery, drills) on a public page | **Yes**, monthly, numbers only, with the method stated. Proof beats marketing for a product whose promise is "we'll be there and we won't expose you." Nothing on it identifies anyone. | P3-G1 | ☐ |
 | D11 | Server-side attestation of note ciphertext (the server signs "this ciphertext hash existed at time T") | **Yes, after counsel confirms it helps rather than hurts.** The server learns nothing new (it already stores the ciphertext). Must never be described as "court-admissible"; say "tamper-evident, with a verification page a lawyer can check." | P3-H1, P3-H2 | ☐ gated on P2-C3 |
-| D12 | What the trusted contact may see when an alert fires | Username, alert number, hours overdue, the survivor's own pre-written note to contacts if they wrote one. **Never** location, schedule details, or other contacts. | P3-I1 | ☐ gated on P2-C4 |
+| D12 | What the trusted contact may see when an alert fires | Username, alert number, hours overdue, the survivor's own pre-written note to contacts if they wrote one. **Never** location, schedule details, or other contacts. | ✅ P3-I1 | ☐ gated on P2-C4 |
 | D13 | Partner referral pages: per-partner invite codes and an aggregate count, nothing else | **Yes.** No referral data flows back to the partner; they get a count. | P3-K1 | ☐ gated on P2-C4 |
 | D14 | Real-time location sharing | **Still no.** Phase 4 at the earliest, with its own consent design (`DESIGN2.md` §5). The check-in alert is the product; location is a different product with a different threat model. | — | default stands |
 | D15 | SMS alerts | **Still no** without the consent design and a funded sender; phone numbers are a new category of stored data (`SCALE.md` §5.3). Revisit with a partner who pays for it. | — | default stands |
@@ -102,11 +102,13 @@ Sprints 0 and 1 need no outside input and start now. Sprints 2 to 4 wait on the 
 | ID | Ticket | Size | Notes |
 |---|---|---|---|
 | P3-I1 | **Alert landing page with context**: the "manage alerts" link in an alert email opens a page that shows what D12 allows (username, alert number, hours overdue, the survivor's pre-written note), then the short path: try to reach them, who else to call, when to call emergency services, what not to do (do not confront the abuser, do not post). Built from `if-you-get-an-alert.html` with the alert's context filled in. | M | D12. No survivor data beyond D12's list, ever. Test: a contact token for one survivor cannot see another's context |
-| P3-I2 | **The survivor's note to contacts**: an optional, encrypted-at-rest message the survivor writes in advance ("if you get this, call my sister first, don't call my mother"), decrypted server-side only at alert time for inclusion in the email and the landing page. Plainly labelled on `checkin.html` as something the server can read when an alert fires. | M | Needs its own line on the privacy page. Counsel and advocate both review the wording |
-| P3-I3 | **Push for the contact's acknowledgment**: a contact can press "I've got this" on the landing page; other contacts of the same survivor see "someone is on it" on theirs (no names). Stored as a count and a timestamp per alert, nothing more. | M | Reduces duplicate panic calls to the survivor; advocate reviews whether this is wanted |
-| P3-I4 | **Help-someone page as a path**: `help-someone.html` restructured into "right now", "this week", "for the long run", with the alert landing linking into the first. | S | Content |
+| ✅ P3-I2 | **The survivor's note to contacts**: an optional, encrypted-at-rest message the survivor writes in advance ("if you get this, call my sister first, don't call my mother"), decrypted server-side only at alert time for inclusion in the email and the landing page. Plainly labelled on `checkin.html` as something the server can read when an alert fires. | M | Needs its own line on the privacy page. Counsel and advocate both review the wording |
+| ✅ P3-I3 | **Push for the contact's acknowledgment**: a contact can press "I've got this" on the landing page; other contacts of the same survivor see "someone is on it" on theirs (no names). Stored as a count and a timestamp per alert, nothing more. | M | Reduces duplicate panic calls to the survivor; advocate reviews whether this is wanted |
+| ✅ P3-I4 | **Help-someone page as a path**: `help-someone.html` restructured into "right now", "this week", "for the long run", with the alert landing linking into the first. | S | Content |
 
 **Exit gate:** a real alert to a real phone opens a landing page that an advocate has read and approved; the privacy page says exactly what a contact can see.
+
+**Status 2026-10-07:** built and tested ahead of the gate; the wording on the landing page and the contact-note card is the operator's and goes to the advocacy reviewer with the rest. The note needs `CONTACT_NOTE_KEY` in `.env` (32 bytes, urlsafe base64); without it the card says the feature is off. Migration 0011, so attestation is 0012 and partners 0013.
 
 ---
 
@@ -156,9 +158,9 @@ Sprints 0 and 1 need no outside input and start now. Sprints 2 to 4 wait on the 
 |---|---|---|
 | 0009 | 1 | ✅ `sessions.device_label`; `invite_emails` table (P3-J1, P3-J4) |
 | 0010 | 1 | ✅ `evidence_attachments.pending_*` staging columns for the PIN change (P3-J2) |
-| 0011 | 3 | `evidence_attestations` (entry id, kind, ciphertext hash, attested at, key id, signature) |
-| 0012 | 4 | `partner_invite_codes`, `users.partner_id` (nullable) |
-| 0013 | 2 | `checkin_contact_notes` (encrypted at rest), `checkin_alert_acks` (alert id, count, first at) |
+| 0011 | 2 | ✅ `checkin_schedules.contact_note` (at rest), `ack_count`, `first_ack_at` (P3-I2, P3-I3) |
+| 0012 | 3 | `evidence_attestations` (entry id, kind, ciphertext hash, attested at, key id, signature) |
+| 0013 | 4 | `partner_invite_codes`, `users.partner_id` (nullable) |
 | later | any | drop `users.failed_login_count`, `users.locked_until` (carried from Phase 2; the model still maps them, so the model change ships a release first) |
 
 All additive. Anything dropped ships a release after the code stops using it (`SCALE.md` §6).

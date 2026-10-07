@@ -57,6 +57,40 @@
         <p>You'll only hear from this page if they miss a scheduled check-in.</p>
       </div>
 
+      <!-- Shown only while an alert is going out for this survivor (P3-I1). What a
+           contact may see is decision D12 in docs/PHASE3_PLAN.md: username, alert
+           number, how long overdue, the survivor's own note, and whether another
+           contact has said they're on it. Never location, schedule or other contacts. -->
+      <section id="alert-now" class="alert-now" hidden aria-labelledby="alert-now-title">
+        <article class="card alert-card">
+          <p class="eyebrow">Alert in progress</p>
+          <h2 id="alert-now-title"><span class="alert-username"></span> missed a check-in</h2>
+          <p id="alert-now-summary"></p>
+          <div class="notice" id="alert-note-block" hidden>
+            <strong><span class="alert-username"></span> left this message for their contacts:</strong>
+            <p id="alert-note"></p>
+          </div>
+          <p class="status" id="alert-ack-state"></p>
+          <div class="actions">
+            <button type="button" class="btn primary" id="ack-btn">I've got this</button>
+          </div>
+          <p class="hint">"I've got this" tells <span class="alert-username"></span>'s other contacts that someone is already reaching out, so they're not all calling at once. It doesn't stop the alerts; only <span class="alert-username"></span> checking in does that.</p>
+          <p id="ack-status" class="status" aria-live="polite"></p>
+        </article>
+
+        <article class="card">
+          <h2>In the next ten minutes</h2>
+          <ol class="steps">
+            <li><strong>Reach out the way you normally would.</strong> A text or a call that sounds like you. "Hey, thinking of you, call me when you can." Don't mention the alert unless you know their phone is safe.</li>
+            <li><strong>Give it a little time.</strong> Most missed check-ins are a flat battery, a long shift or a forgotten tap. The alert repeats until they check in, so you'll know if it continues.</li>
+            <li><strong>Don't contact the person they may be afraid of</strong>, and don't post anything or ask around in a way that could get back to that person.</li>
+            <li><strong>If you can't reach them and you believe they're in danger,</strong> call 911 or the local emergency number and ask for a welfare check. Say where they live and that you're worried about domestic violence. You don't need proof.</li>
+            <li><strong>If you want to talk it through first,</strong> the National Domestic Violence Hotline talks with worried friends and family every day: <a href="tel:18007997233">1-800-799-7233</a>, or text START to <a href="sms:88788?body=START">88788</a>.</li>
+          </ol>
+          <p>More, including what to say and what not to say: <a href="/if-you-get-an-alert.html">If you get an alert</a> and <a href="/help-someone.html">How to help someone</a>.</p>
+        </article>
+      </section>
+
       <div class="safe-note" id="already-subscribed-note" hidden>
         Push notifications are already enabled on this device.
       </div>

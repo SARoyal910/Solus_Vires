@@ -1598,3 +1598,8 @@ html.theme-plain .reveal-ready .section-head {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 0.6rem 0.9rem; margin: 0 0 1rem; border: 1px solid var(--line); border-radius: 0.6rem;
 }
+
+/* Alert in progress on the contact's page (P3-I1). */
+.alert-card { border-color: var(--warn-ink); }
+.steps { padding-left: 1.2rem; }
+.steps li { margin: 0.5rem 0; }

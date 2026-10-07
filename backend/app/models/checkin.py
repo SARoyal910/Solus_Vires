@@ -83,6 +83,15 @@ class CheckinSchedule(Base):
     # Alerts sent since the last check-in: numbers repeats, and a check-in
     # with this above zero sends contacts a stand-down.
     alerts_sent_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Contacts who pressed "I've got this" during the current alert episode
+    # (P3-I3): a count and the first time, nothing about who. Reset with
+    # alerts_sent_count when the survivor checks in.
+    ack_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    first_ack_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # The survivor's note to contacts (P3-I2), AES-GCM at rest under
+    # CONTACT_NOTE_KEY, decrypted only when an alert goes out. Up to 500
+    # characters of plaintext.
+    contact_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now(), nullable=False

@@ -34,6 +34,9 @@ x-api-environment: &api-environment
   - POSTMARK_SERVER_TOKEN=${POSTMARK_SERVER_TOKEN:-}
   - POSTMARK_SENDER_EMAIL=${POSTMARK_SENDER_EMAIL:-}
   - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
+  # Survivor's message to contacts, encrypted at rest (P3-I2). Empty = off.
+  - CONTACT_NOTE_KEY=${CONTACT_NOTE_KEY:-}
+  - INVITE_EMAILS_PER_DAY=${INVITE_EMAILS_PER_DAY:-10}
   - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
   # The alert loop lives in the alert-worker container (SCALE.md Stage 1
   # item 5). Leave this off on the api unless the worker is down; running

@@ -4,11 +4,13 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from html import escape as html_escape
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
+from ..core import at_rest
 from ..core.config import get_settings
 from ..core.db import SessionLocal, engine
 from ..core.notifications import PushSubscriptionExpired, ping_healthcheck, send_email, send_push
@@ -77,20 +79,28 @@ def _alert_label(number: int) -> str:
     return "Check-in alert" if number <= 1 else f"Check-in alert {number}"
 
 
-def _alert_email_html(username: str, manage_url: str, base_url: str, repeat_hours: int, number: int = 1) -> str:
+def _alert_email_html(
+    username: str, manage_url: str, base_url: str, repeat_hours: int, number: int = 1, note: str | None = None
+) -> str:
     repeat_line = (
         "" if number <= 1 else f"<p>This is alert number {number}: {username} still hasn't checked in.</p>"
+    )
+    note_block = (
+        f"<p><strong>{username} left this message for their contacts:</strong><br>{html_escape(note)}</p>"
+        if note
+        else ""
     )
     return f"""
     <p><strong>{username} hasn't checked in on Solus Vires as expected.</strong></p>
     {repeat_line}
+    {note_block}
     <p>This is an automated safety check-in alert. It does not necessarily mean something is
     wrong, but {username} set this up to reach you if they miss a scheduled check-in.
     Consider reaching out to them the way you normally would. Don't contact the person they may
     be afraid of. If you believe they are in danger right now, call 911.</p>
     <p><a href="{base_url}/if-you-get-an-alert.html">What to do when you get this alert</a></p>
     <p>You'll get this alert again {_repeat_phrase(repeat_hours)} until {username} checks in.</p>
-    <p><a href="{manage_url}">Manage or stop these alerts</a></p>
+    <p><a href="{manage_url}">What to do now, and how to tell other contacts you're on it</a></p>
     """.strip()
 
 
@@ -341,6 +351,8 @@ class CheckinService:
             stand_down = "turned_off"
             schedule.alerts_sent_count = 0
             schedule.last_alert_sent_at = None
+            schedule.ack_count = 0
+            schedule.first_ack_at = None
         schedule.active = payload.active
         schedule.interval_hours = payload.interval_hours
         schedule.grace_hours = payload.grace_hours
@@ -375,10 +387,92 @@ class CheckinService:
         schedule.next_deadline_at = now + timedelta(hours=schedule.interval_hours)
         schedule.last_alert_sent_at = None
         schedule.alerts_sent_count = 0
+        schedule.ack_count = 0
+        schedule.first_ack_at = None
         db.commit()
         db.refresh(schedule)
         logger.info("checkin_recorded")
         return schedule, needs_stand_down
+
+    # ---------- Note to contacts (P3-I2) ----------
+
+    def set_contact_note(self, db: Session, user: User, note: str) -> CheckinSchedule:
+        """Stores the survivor's message to contacts, encrypted at rest; empty clears it."""
+        schedule = self._get_or_create_schedule(db, user)
+        text_value = " ".join(note.split())
+        if not text_value:
+            schedule.contact_note = None
+        else:
+            if not at_rest.enabled():
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Notes to contacts aren't available on this server yet.",
+                )
+            schedule.contact_note = at_rest.encrypt_text(text_value, associated=str(user.id))
+        db.commit()
+        db.refresh(schedule)
+        logger.info("checkin_contact_note_set" if text_value else "checkin_contact_note_cleared")
+        return schedule
+
+    @staticmethod
+    def read_contact_note(schedule: CheckinSchedule) -> str | None:
+        """Decrypts the note for the survivor's own page or an alert. None when unset or unreadable."""
+        if not schedule.contact_note or not at_rest.enabled():
+            return None
+        try:
+            return at_rest.decrypt_text(schedule.contact_note, associated=str(schedule.user_id))
+        except Exception:
+            logger.warning("checkin_contact_note_unreadable")
+            return None
+
+    # ---------- What a contact may see during alerts (P3-I1, D12) ----------
+
+    def alert_context(self, db: Session, contact: TrustedContact) -> dict | None:
+        """The alert the contact is being asked to act on, or None when there isn't one.
+
+        Only an accepted contact, only while alerts are going out. Username,
+        alert number, hours overdue, the survivor's note, and how many
+        contacts have acknowledged: nothing about location, schedule or who
+        the other contacts are.
+        """
+        if contact.status != "accepted":
+            return None
+        schedule = db.query(CheckinSchedule).filter(CheckinSchedule.user_id == contact.user_id).first()
+        if schedule is None or not schedule.active or (schedule.alerts_sent_count or 0) == 0:
+            return None
+        settings = get_settings()
+        now = datetime.now(timezone.utc)
+        deadline = now
+        if schedule.next_deadline_at:
+            deadline = schedule.next_deadline_at + timedelta(hours=schedule.grace_hours)
+        return {
+            "alert_number": schedule.alerts_sent_count,
+            "hours_overdue": max(0, int((now - deadline).total_seconds() // 3600)),
+            "first_alert_at": (
+                schedule.last_alert_sent_at
+                - timedelta(hours=settings.checkin_alert_repeat_hours * (schedule.alerts_sent_count - 1))
+                if schedule.last_alert_sent_at
+                else None
+            ),
+            "note": self.read_contact_note(schedule),
+            "acknowledged_by": schedule.ack_count or 0,
+            "repeat_hours": settings.checkin_alert_repeat_hours,
+        }
+
+    def acknowledge_alert(self, db: Session, token: str) -> int:
+        """A contact says "I've got this" (P3-I3). Returns the acknowledgment count."""
+        contact = self._get_contact_by_token(db, token)
+        if contact.status != "accepted":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This invite isn't active.")
+        schedule = db.query(CheckinSchedule).filter(CheckinSchedule.user_id == contact.user_id).first()
+        if schedule is None or (schedule.alerts_sent_count or 0) == 0:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No alert is going out right now.")
+        schedule.ack_count = (schedule.ack_count or 0) + 1
+        if schedule.first_ack_at is None:
+            schedule.first_ack_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info("checkin_alert_acknowledged")
+        return schedule.ack_count
 
     @staticmethod
     def is_overdue(schedule: CheckinSchedule) -> bool:
@@ -472,7 +566,12 @@ class CheckinService:
             ),
             subject=f"{label}: {user.username} missed a check-in",
             html_for=lambda manage_url: _alert_email_html(
-                user.username, manage_url, settings.public_base_url, settings.checkin_alert_repeat_hours, number
+                user.username,
+                manage_url,
+                settings.public_base_url,
+                settings.checkin_alert_repeat_hours,
+                number,
+                self.read_contact_note(schedule),
             ),
         )
         entry.kind = "alert"

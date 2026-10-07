@@ -33,6 +33,7 @@ class Settings:
     healthcheck_ping_url: str
     checkin_alert_repeat_hours: int
     invite_emails_per_day: int
+    contact_note_key: str
     checkin_token_secret: str
     recovery_code_pepper: str
     trust_proxy_headers: bool
@@ -94,6 +95,10 @@ def get_settings() -> Settings:
         # Invite emails one account may send in 24 h (P3-J4). The alert path
         # shares the email quota; this keeps one account from spending it.
         invite_emails_per_day=int(os.getenv("INVITE_EMAILS_PER_DAY", "10")),
+        # Key for the survivor's note to contacts, encrypted at rest and read
+        # only at alert time (P3-I2). 32 bytes, urlsafe base64. Empty = the
+        # feature is off and the page says so.
+        contact_note_key=os.getenv("CONTACT_NOTE_KEY", "").strip(),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
         # Server-side key for recovery-code HMACs. Never change it once codes
         # exist: every code issued under the old value would stop working.

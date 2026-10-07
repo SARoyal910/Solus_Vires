@@ -38,12 +38,36 @@ class ScheduleResponse(BaseModel):
     overdue: bool
     # Alerts sent since the last check-in (0 when none are going out).
     alerts_sent: int = 0
+    # Contacts who said "I've got this" during the current alerts (P3-I3).
+    acknowledged_by: int = 0
+    # The survivor's note to contacts (P3-I2); None when the feature is off.
+    contact_note: str | None = None
+    contact_note_available: bool = False
+
+
+class ContactNoteRequest(BaseModel):
+    # Plain text, a few sentences. Empty clears it.
+    note: str = Field(max_length=500)
+
+
+class AlertContext(BaseModel):
+    """What a trusted contact may see while alerts are going out (decision D12)."""
+
+    alert_number: int
+    hours_overdue: int
+    first_alert_at: datetime | None
+    note: str | None
+    acknowledged_by: int
+    repeat_hours: int
 
 
 class InviteInfoResponse(BaseModel):
     survivor_username: str
     status: str
     subscribed_devices: int
+    # Present only while the survivor is overdue and alerts have gone out, and
+    # only for an accepted contact (P3-I1).
+    alert: AlertContext | None = None
 
 
 class PushKeys(BaseModel):

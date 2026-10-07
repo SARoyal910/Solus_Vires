@@ -108,6 +108,23 @@
         </article>
 
         <div id="contacts-list" class="grid two"></div>
+
+        <article class="card" id="contact-note-card">
+          <h2>A message for your contacts</h2>
+          <p>Optional. If an alert ever goes out, this is shown to the contacts who get it, in the email and on the page the alert links to. For example: "Try my cell first, then my sister. Don't call my mum." Keep it to things that help them act. It is <strong>not</strong> encrypted the way your notes are: we keep it scrambled in the database, but the server has to be able to read it to put it in an alert. Don't put anything here you wouldn't want us to be able to see.</p>
+          <form id="contact-note-form">
+            <label>
+              Message (up to 500 characters)
+              <textarea name="note" rows="3" maxlength="500" autocomplete="off"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="btn primary">Save message</button>
+              <button type="button" class="btn" id="contact-note-clear">Remove message</button>
+            </div>
+            <p id="contact-note-status" class="status" aria-live="polite"></p>
+          </form>
+          <p class="hint" id="contact-note-off" hidden>Messages to contacts aren't switched on for this site yet.</p>
+        </article>
       </div>
 
       <div class="band">

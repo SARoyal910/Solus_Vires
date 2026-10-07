@@ -3,13 +3,16 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
+from ..core import at_rest
 from ..core.config import get_settings
 from ..core.db import get_db
 from ..core.rate_limit import RateLimiter
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.checkin import (
+    AlertContext,
     AlertLogEntryResponse,
+    ContactNoteRequest,
     InviteInfoResponse,
     PushSubscriptionRequest,
     ScheduleResponse,
@@ -51,6 +54,9 @@ def _schedule_response(schedule) -> ScheduleResponse:
         next_deadline_at=schedule.next_deadline_at,
         overdue=CheckinService.is_overdue(schedule),
         alerts_sent=schedule.alerts_sent_count or 0,
+        acknowledged_by=schedule.ack_count or 0,
+        contact_note=CheckinService.read_contact_note(schedule),
+        contact_note_available=at_rest.enabled(),
     )
 
 
@@ -130,6 +136,16 @@ async def checkin(
     return _schedule_response(schedule)
 
 
+@router.put("/schedule/contact-note", response_model=ScheduleResponse)
+async def set_contact_note(
+    payload: ContactNoteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ScheduleResponse:
+    """The survivor's message to contacts, shown only when an alert goes out (P3-I2)."""
+    return _schedule_response(service.set_contact_note(db, user, payload.note))
+
+
 # ---------- Survivor-authenticated: alert history ----------
 
 
@@ -160,11 +176,19 @@ async def vapid_public_key() -> dict[str, str]:
 @router.get("/invite/{token}", response_model=InviteInfoResponse, dependencies=[Depends(invite_limiter)])
 async def get_invite(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
     contact, user = service.get_invite(db, token)
+    alert = service.alert_context(db, contact)
     return InviteInfoResponse(
         survivor_username=user.username,
         status=contact.status,
         subscribed_devices=service.subscribed_device_count(db, contact.id),
+        alert=AlertContext(**alert) if alert else None,
     )
+
+
+@router.post("/invite/{token}/ack", dependencies=[Depends(invite_limiter)])
+async def acknowledge_alert(token: str, db: Session = Depends(get_db)) -> dict[str, int]:
+    """"I've got this": tells the survivor's other contacts someone is on it (P3-I3)."""
+    return {"acknowledged_by": service.acknowledge_alert(db, token)}
 
 
 @router.post("/invite/{token}/accept", dependencies=[Depends(invite_limiter)])

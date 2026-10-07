@@ -37,15 +37,19 @@
     form.active.checked = schedule.active;
 
     alertsSent = schedule.alerts_sent || 0;
+    renderContactNote(schedule);
     const card = document.getElementById("checkin-now-card");
     const deadlineText = document.getElementById("deadline-text");
     if (schedule.active) {
       card.hidden = false;
       if (alertsSent > 0) {
+        const acked = schedule.acknowledged_by || 0;
+        const onIt = acked === 0 ? "" : acked === 1 ? " One of them has said they're on it." : ` ${acked} of them have said they're on it.`;
         deadlineText.textContent =
-          alertsSent === 1
-            ? "Your trusted contacts have been sent an alert. Check in to stop the alerts; they'll be told you checked in."
-            : `Your trusted contacts have been sent ${alertsSent} alerts. Check in to stop the alerts; they'll be told you checked in.`;
+          (alertsSent === 1
+            ? "Your trusted contacts have been sent an alert."
+            : `Your trusted contacts have been sent ${alertsSent} alerts.`) +
+          onIt + " Check in to stop the alerts; they'll be told you checked in.";
       } else if (schedule.overdue) {
         deadlineText.textContent = "You're overdue. If you don't check in, your trusted contacts will be alerted soon.";
       } else {
@@ -55,6 +59,43 @@
       card.hidden = true;
     }
   }
+
+  // The survivor's message to contacts (P3-I2). Readable by the server at
+  // alert time, and the card says so.
+  function renderContactNote(schedule) {
+    const form = document.getElementById("contact-note-form");
+    const off = !schedule.contact_note_available;
+    document.getElementById("contact-note-off").hidden = !off;
+    form.note.disabled = off;
+    form.querySelector("button[type=submit]").disabled = off;
+    if (document.activeElement !== form.note) form.note.value = schedule.contact_note || "";
+    document.getElementById("contact-note-clear").hidden = !schedule.contact_note;
+  }
+
+  async function saveContactNote(note) {
+    const status = document.getElementById("contact-note-status");
+    status.textContent = "Saving…";
+    try {
+      const res = await fetch("/api/checkin/schedule/contact-note", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "not saved");
+      const schedule = await res.json();
+      renderContactNote(schedule);
+      status.textContent = note.trim() ? "Saved. Your contacts will see it only if an alert goes out." : "Message removed.";
+    } catch (e) {
+      status.textContent = e.message || "Couldn't save right now.";
+    }
+  }
+
+  document.getElementById("contact-note-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveContactNote(event.target.note.value);
+  });
+  document.getElementById("contact-note-clear").addEventListener("click", () => saveContactNote(""));
 
   function contactCard(contact) {
     const card = document.createElement("article");
