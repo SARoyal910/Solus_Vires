@@ -38,16 +38,16 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 **Blocked until the reviews come back**
 - Work through the feedback (P2-C7), the retention policy (P2-F6), reopening sign-ups (P2-B10), freezing `DESIGN2.md`
 
-**Known gaps, not planned yet** (from `docs/THREAT_MODEL.md` §6)
-- A way to change the Notes PIN; a "where you're signed in" view; a cap on invite emails per account
+**Known gaps, now planned** (from `docs/THREAT_MODEL.md` §6, scheduled in `docs/PHASE3_PLAN.md` Sprint 1)
+- A way to change the Notes PIN (P3-J2); a "where you're signed in" view (P3-J1); a cap on invite emails per account (P3-J4)
 - Cosmetic: the signed-out `/api/auth/me` check logs a 401 in the browser console (`docs/RUNBOOK.md` "Expected console noise")
 
 ## Deliberately not planned
 
 Kept here so they aren't mistaken for forgotten. Reasons are in `docs/DESIGN2.md` §5 and `docs/PHASE2_PLAN.md` §1.
 
-- Real-time location sharing (Phase 3 at the earliest; needs its own consent design)
-- SMS alerts (no free option)
+- Real-time location sharing (Phase 4 at the earliest; needs its own consent design; `docs/PHASE3_PLAN.md` D14)
+- SMS alerts (no free option; `docs/PHASE3_PLAN.md` D15)
 - MFA (conflicts with the shared-device threat model; revisit with the advocacy reviewer)
 - Hosted CAPTCHA (third-party script; decision D7)
 - Partner portal / RBAC (no partner yet)
