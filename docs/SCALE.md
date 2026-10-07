@@ -62,6 +62,18 @@ These are engineering estimates from the architecture, not load-test results. Se
 4. **Backups on the same disk as the data.** A disk failure or a hostile actor with root takes both. The encryption protects confidentiality, not availability.
 5. **The owner.** One person holds the credentials, the backup key, the pepper and the knowledge. The plan below treats this as an engineering risk, because it is.
 
+
+### 2.4 Isolation from other projects
+
+Solus Vires shares nothing with any other project the owner runs, at any stage. This is a rule, not a cost optimisation, and it is cheaper to keep than to restore:
+
+- **Its own DigitalOcean project, ideally its own team or account.** Every resource (droplet, backups, bucket, later the database cluster and load balancer) is created there and nothing else is. Billing, API tokens, SSH keys and the people with access are separate from any hobby or client work.
+- **A single-purpose droplet.** No other project's containers, cron jobs or databases on the host. Another project wanting a server gets its own small droplet.
+- **Its own database, always.** Today that is the `db` container; at Stage 2 it is a managed cluster holding one database and one application user, with trusted sources limited to this project's hosts. Never a shared cluster: a managed provider's point-in-time restore rolls back every database on the cluster, a noisy neighbour's query slows the alert pass, and a leaked credential for a side project must not be able to reach survivors' data.
+- **Its own vendor accounts** (Brevo, Cloudflare zone, monitoring). Where a vendor account cannot be split, the Solus Vires resources live in their own project or workspace inside it.
+
+The reasons are the three constraints in §1. The threat model's subpoena and vendor-compromise actors reach whatever is on the same account; the privacy page's promises are only as good as the least careful thing sharing the server; and the owner's time is better spent on this project than on untangling it from another one later. Other projects may share infrastructure with each other freely; this one does not join them.
+
 ---
 
 ## 3. Targets: what "reliable enough" means
@@ -125,6 +137,10 @@ Each stage lists its **trigger** (the signal that says it is time), the **work**
 **Goal:** no single server, no single process, an hour's RPO, and horizontal room for the API.
 
 1. **Managed Postgres** (DigitalOcean Managed Databases or equivalent) with point-in-time recovery. This moves the database off the application host, gives automated backups with a 7-day window and an RPO of minutes, and removes the "backups on the same disk" failure. Migration: `pg_dump` from the container, `pg_restore` into the managed instance, switch `DATABASE_URL`, redeploy. Keep the encrypted `age` dumps going as the independent second copy; a managed provider is one vendor, and the threat model's subpoena and vendor-compromise actors apply to it. *One weekend with a maintenance window.*
+
+   **What managed Postgres buys, and what it does not.** The cheapest managed plan (about $15/month, 1 GB RAM, 10 GB disk) has *less* compute than the Postgres container already has on the droplet. That is fine: at this product's scale Postgres is light, and the plan's own estimates (§2.2) have email quota and support load as the limits long before the database. The $15 is not for RAM. It is for point-in-time recovery to any minute in the last seven days, backups that leave the application host automatically, patching and (one tier up) a standby with failover, and a database that survives losing the droplet. If the goal is more RAM or disk, resize the droplet (Stage 1 item 3), not the database plan. Until a Stage 2 trigger fires, the container plus encrypted dumps copied off the droplet (Stage 0 item 2) gives most of the durability for a fraction of the cost.
+
+   **Why not Supabase or a similar platform.** The app has its own authentication, sessions, SQLAlchemy models and Alembic migrations; it would use Supabase only as a Postgres host, so none of the platform's auth, storage, realtime or REST layers earn their keep. Its free tier pauses projects after a week of inactivity, which for an app whose core promise is an alert loop every five minutes is an outage, so the paid tier is the floor. Every query would leave the datacenter the API runs in. And it adds a second vendor, with its own dashboard, keys and staff, to the subpoena and vendor-compromise surface the threat model already worries about. A managed Postgres in the same provider and region as the droplet, dedicated to this project (§2.4), is the right shape. Supabase and its peers are a good fit for a project that wants hosted auth and a REST API with little backend code; this is not that project.
 2. **Redis for the in-memory state.** The rate limiter, login throttle and abuse counters live in process memory, which is why there is one worker. Move them to Redis (a managed instance or a container with no persistence; nothing in it needs to survive a restart, and it must never store IP history beyond the rate-limit window). Then run uvicorn with several workers, and later several `api` containers. *Three days including tests; the threat model already describes the design.*
 3. **Photos out of the database into object storage.** Ciphertext blobs to a bucket (DigitalOcean Spaces or S3-compatible), keyed by attachment id, with the database keeping only the metadata row. The client already encrypts before upload, so the bucket holds nothing readable, and the bucket must be private with no public listing. Backups and restores become fast again. Migration can be lazy: new uploads to the bucket, old rows moved by a maintenance task. *A week including the export path and tests.*
 4. **Two application droplets behind a load balancer**, or move the containers to a platform that does this for you (DigitalOcean App Platform, Fly.io). With the database and Redis external and the alert worker separate, `api` and `web` are stateless and can be duplicated. Deploys become rolling, so a deploy no longer takes the site down for seconds. Authenticated Origin Pulls must be configured on the load balancer or each origin.
@@ -213,6 +229,7 @@ These apply at every stage and are the difference between a site that is reliabl
 - **Caching HTML at Cloudflare.** It breaks `/plain/`, the `no-cache` revalidation that fixed the stale-page incident, and the privacy guarantee that private pages are `no-store`.
 - **Third-party monitoring scripts in pages** (real-user monitoring, error trackers). Server-side monitoring only; the CSP will block the rest, and it should.
 - **A CDN or hosting change that logs visitor IPs by default** without first checking the privacy page's claims against the vendor's logging.
+- **Sharing a server, database cluster or cloud account with another project.** See §2.4. Cheaper by a few dollars, and it puts survivors' data one leaked side-project credential or one shared point-in-time restore away from harm.
 - **Scaling the invite gate away.** Growth is gated by the external reviews on purpose (P2-B10). This plan makes the site ready for the people those reviews allow in; it does not argue for letting them in sooner.
 
 ---
