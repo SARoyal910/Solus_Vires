@@ -41,19 +41,35 @@ One DigitalOcean droplet behind Cloudflare, running three Docker containers from
 | Push | Browser push services via VAPID | Free, per-device, no quota of ours |
 | Backups | Nightly encrypted `pg_dump` kept on the droplet, 30 copies | Local disk; copies off the droplet are manual |
 
-### 2.2 Honest capacity estimates
+### 2.2 Capacity: estimates and the first measurements
 
-These are engineering estimates from the architecture, not load-test results. Section 4, Stage 0, includes the one load test that would replace them with numbers.
+The first column is what the architecture suggests; the "measured" rows are from `scripts/loadtest.sh` on 2026-10-07 (Stage 0 item 4), run on the owner's Mac (Apple M4 Pro, 14 cores) against a throwaway stack with one uvicorn worker, no nginx and no Cloudflare in front. The Mac is far faster than the droplet: **divide the login and alert-pass numbers by 5 to 10 for a basic droplet**, and treat the page numbers as a floor, since production serves pages from nginx behind Cloudflare, not from Python. Re-run on a droplet-sized VM before quoting them to anyone as production figures.
 
 | Dimension | Comfortable today | Where it starts to hurt | What hurts |
 |---|---|---|---|
 | Public page views | Hundreds of thousands a day | Not a realistic concern | Cloudflare and static nginx |
 | Registered accounts | Thousands | Tens of thousands | Postgres fine; email quota and support load are the real limits |
-| Logins per second | 3–5 sustained | ~10 | Argon2 (t=3, 64 MiB) on one worker; everyone else waits behind it |
-| Concurrent check-in schedules | Thousands | Tens of thousands | One alert pass every 5 min does the work serially; each alert is an email API call and a push |
-| Alert emails per day | Under the Brevo free cap | At the cap | **Alerts silently fail when the cap is reached.** The single most likely scaling failure |
+| Logins per second | 3–5 sustained (estimate for the droplet) | ~10 | Argon2 (t=3, 64 MiB) on one worker; everyone else waits behind it |
+| Concurrent check-in schedules | Thousands | **A few hundred overdue at once** (measured, below) | The alert pass sends serially; each email is a provider round trip |
+| Alert emails per day | Under the Brevo free cap | At the cap | **Alerts silently fail when the cap is reached** unless the Postmark fallback (Stage 1 item 2) is configured |
 | Photos | A few hundred accounts using them | Hundreds of GB | Droplet disk, backup size and duration, `pg_dump` time |
 | Database size | Tens of GB | Hundreds of GB | Backups and restores slow down before Postgres does |
+
+**Measured 2026-10-07** (`PYTHON=.venv/bin/python scripts/loadtest.sh`, defaults):
+
+| Test | Result | Reading |
+|---|---|---|
+| 500 concurrent loads of `/` from Python's static handler | 0 errors, all done in 3.1 s, p50 2.4 s, p95 2.6 s | The single worker queues them; nginx in production does this in milliseconds. A floor, not the production number |
+| 500 concurrent `GET /api/health` | 0 errors, 3.0 s wall, p95 2.6 s | Same queueing; the API itself is not the cost |
+| 50 concurrent logins, 50 accounts, 50 addresses | 0 errors, 1.1 s wall, p50 0.77 s, p95 1.10 s, 45 logins/s | On the droplet expect roughly 5–10/s and a p95 of several seconds under that burst. The §9 trigger (p95 above 2 s) stands |
+| Alert pass, 1,000 overdue schedules, email and push stubbed with no latency | 2.0 s, 506 alerts/s | Database and application work is negligible |
+| Alert pass, 200 overdue schedules, 300 ms modelled per email | 62 s, 3.2 alerts/s | **Linear in the number of overdue survivors.** 1,000 overdue at once would take about 5 minutes, the entire check interval; the heartbeat would read late and the second pass would start late |
+
+What the measurements change:
+
+- **The alert pass is the first real limit, not logins.** It sends one email at a time and waits for the provider each time. Today's active-schedule counts make this moot (a few hundred schedules, a few percent overdue), but it is the reason the §9 trigger for the separate worker is set at 50 active schedules and why Stage 2 should make the pass send concurrently (a small thread pool over contacts, bounded so the provider's rate limit is respected). Added to Stage 2 as item 7.
+- **Logins are not the bottleneck the estimate feared** at this scale. Argon2 at these parameters costs tens of milliseconds on fast hardware; on the droplet, a burst of 50 would still clear in well under a minute.
+- **Nothing failed.** No 429s from the limiters once each client had its own address, no 5xx, no connection errors at 500 concurrent.
 
 ### 2.3 Single points of failure, today
 
@@ -108,7 +124,7 @@ Each stage lists its **trigger** (the signal that says it is time), the **work**
    - Turn on DigitalOcean droplet backups (weekly image, a few dollars a month). This is the fast path to a whole-server restore.
    - Add a nightly `scp` or `rclone` of the newest `.dump.age` to a second place (the Mac, or an object-storage bucket). The files are encrypted, so where they land matters less than that they land. Add the copy step to the cron line and have Healthchecks ping on success, so a silent failure pages you. *Built 2026-10-07:* `scripts/offsite_copy.sh` does this (size check, 30-day pruning, success and failure pings); `RUNBOOK.md` "Backups" has the one-time setup on the droplet.
 3. **Rehearse the restore on a schedule.** `scripts/restore_check.sh` exists; put a calendar reminder for every quarter and record the date and duration in `RUNBOOK.md`. A backup that has not been restored is a hope, not a backup.
-4. **Run one load test and write the numbers down.** From the Mac against the local preview, not production: 50 concurrent logins, 500 concurrent public page loads, an alert pass with 1,000 due schedules against a seeded database. Replace the estimates in §2.2 with what you measured. *One evening.* This tells you how far away Stage 1 really is.
+4. **Run one load test and write the numbers down.** From the Mac against the local preview, not production: 50 concurrent logins, 500 concurrent public page loads, an alert pass with 1,000 due schedules against a seeded database. Replace the estimates in §2.2 with what you measured. *One evening.* This tells you how far away Stage 1 really is. *Done 2026-10-07:* `scripts/loadtest.sh` (its own throwaway compose project, seeds, measures, tears down); results in §2.2. Re-run on a droplet-sized VM for production figures.
 5. **Watch the email quota.** Add a line to the weekly checklist (§7): Brevo dashboard, emails sent in the last 7 days versus the cap. The alert path depends on it.
 6. **Write down the bus-factor fixes.** The pepper, backup key, Brevo and DigitalOcean credentials, and Cloudflare login in a password manager vault shared with one trusted second person, with `INCIDENT_PLAN.md` naming them. Credentials are infrastructure.
 7. **Set the Cloudflare cache rule for static assets.** Let Cloudflare cache `.css`, `.js`, `.png`, `.svg` for an hour; never HTML (pages are `no-cache` and `/plain/` depends on it). This is free headroom for the public pages. Combine with the existing `no-cache` on HTML.
@@ -147,6 +163,7 @@ Each stage lists its **trigger** (the signal that says it is time), the **work**
 4. **Two application droplets behind a load balancer**, or move the containers to a platform that does this for you (DigitalOcean App Platform, Fly.io). With the database and Redis external and the alert worker separate, `api` and `web` are stateless and can be duplicated. Deploys become rolling, so a deploy no longer takes the site down for seconds. Authenticated Origin Pulls must be configured on the load balancer or each origin.
 5. **Infrastructure as code.** Terraform (or the provider's equivalent) for the droplets, load balancer, database, bucket, DNS and Cloudflare settings, so the environment can be rebuilt from the repository, and so the Cloudflare settings the CSP depends on (`RUNBOOK.md`) are enforced rather than remembered.
 6. **Tighten the objectives:** RPO 1 hour, RTO 1 hour, alert delivery 99.9%.
+7. **Send alerts concurrently within a pass.** The load test (§2.2) shows the pass is linear in overdue survivors because each email waits for the provider. A bounded thread pool (say 8 workers) over the contacts of a pass, with the per-survivor commit kept after that survivor's sends, cuts a 1,000-alert pass from minutes to seconds. Keep the bound below the providers' rate limits, and keep one message per contact (§5.3). *Two days including a load-test rerun.* Do it earlier than Stage 2 if the weekly checklist ever shows a pass taking longer than a minute.
 
 **Cost:** roughly $150–300/month. This is the stage where the project needs either a small grant, a partner's budget, or a volunteer engineer with a few hours a week.
 
