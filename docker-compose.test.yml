@@ -49,6 +49,10 @@ services:
       - CHECKIN_TOKEN_SECRET=preview-only
       - RECOVERY_CODE_PEPPER=preview-only
       - BETA_SIGNUPS_ENABLED=true
+      # Phase 3 features that are off without a key, on in the preview so the
+      # browser suites exercise them. Throwaway values; the database is tmpfs.
+      - ATTESTATION_PRIVATE_KEY=cHJldmlldy1vbmx5LWF0dGVzdGF0aW9uLXNlZWQtMzI
+      - CONTACT_NOTE_KEY=cHJldmlldy1vbmx5LWNvbnRhY3Qtbm90ZS1rZXktMzI=
       - PUBLIC_BASE_URL=http://127.0.0.1:${PREVIEW_PORT:-8099}
       - PIP_DISABLE_PIP_VERSION_CHECK=1
       - PIP_ROOT_USER_ACTION=ignore

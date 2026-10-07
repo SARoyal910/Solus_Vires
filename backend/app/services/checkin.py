@@ -18,6 +18,7 @@ from ..core.security import sweep_expired_sessions
 from ..models.auth import User
 from ..models.checkin import CheckinAlertLog, CheckinSchedule, InviteEmail, PushSubscription, TrustedContact
 from ..schemas.checkin import PushSubscriptionRequest, ScheduleUpdateRequest, TrustedContactCreate
+from .retention import sweep_inactive_accounts
 from .vault import VaultService
 
 logger = logging.getLogger("solusvires.checkin")
@@ -686,6 +687,8 @@ class CheckinService:
                 # A change in progress completes within minutes; the pass
                 # runs every five, so anything still staged here is abandoned.
                 VaultService().discard_stale_rekey_copies(db)
+                # Retention (P3-H4): off until INACTIVE_ACCOUNT_RETENTION_DAYS is set.
+                sweep_inactive_accounts(db)
             if deleted:
                 logger.info("expired_sessions_swept", extra={"count": deleted})
         except Exception:

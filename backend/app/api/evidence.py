@@ -3,10 +3,13 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from ..core import attestation
 from ..core.db import get_db
 from ..core.security import get_current_user
 from ..models.auth import User
 from ..schemas.evidence import (
+    AttestationKeyResponse,
+    AttestationResponse,
     CaseProfileResponse,
     EncryptedBlob,
     EvidenceEntryResponse,
@@ -14,6 +17,7 @@ from ..schemas.evidence import (
     SaltResponse,
     SetSaltRequest,
 )
+from ..services import attest
 from ..services.evidence import EvidenceService
 
 router = APIRouter(prefix="/api/evidence", tags=["evidence"])
@@ -111,3 +115,22 @@ async def delete_entry(
 ) -> dict[str, bool]:
     service.delete_entry(db, user, entry_id)
     return {"ok": True}
+
+
+# ---------- Attestation (P3-H1) ----------
+
+
+@router.get("/attestations", response_model=list[AttestationResponse])
+async def list_attestations(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> list[AttestationResponse]:
+    """Every signed statement about this account's ciphertext, oldest first. Hashes, never content."""
+    return [AttestationResponse.model_validate(a, from_attributes=True) for a in attest.list_for(db, user.id)]
+
+
+@router.get("/attestation-key", response_model=AttestationKeyResponse)
+async def attestation_key() -> AttestationKeyResponse:
+    """The public key an export is verified against. Public, and also printed on /trust.html."""
+    if not attestation.enabled():
+        return AttestationKeyResponse(enabled=False)
+    return AttestationKeyResponse(enabled=True, key_id=attestation.key_id(), public_key=attestation.public_key_b64())

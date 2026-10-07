@@ -16,6 +16,12 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 - [ ] Re-run `scripts/loadtest.sh` on a droplet-sized VM (or the staging box) so `docs/SCALE.md` §2.2 has production-shaped numbers
 - [ ] Fill the `[ ]` blanks in `docs/INVESTOR_PACK.md` from UptimeRobot, Healthchecks, the restore table and the canary log; it needs about four green canary weeks first
 
+**Phase 3 Sprints 1–3 (built 2026-10-07 on the Mac, not yet deployed; `docs/PHASE3_PLAN.md`)**
+- [ ] Deploy: migrations 0009–0012. Then generate and add to `.env` (same one-liner for each, in `.env.example`): `CONTACT_NOTE_KEY` (message to contacts), `ATTESTATION_PRIVATE_KEY` (signed exports). Both features are off until set. Keep a record of the attestation public key per year.
+- [ ] Send `watched-phone.html`, the alert landing block on `checkin-invite.html`, the contact-note card and `help-someone.html` to the advocacy reviewer with the packet; `for-advocates.html`, `verify.html` and the export's "How to verify" wording to counsel.
+- [ ] Decide `INACTIVE_ACCOUNT_RETENTION_DAYS` with counsel; until then leave it 0 and the privacy page as is.
+- [ ] P3-J6 (Argon2id in the browser) is deferred on purpose; see its row in the plan.
+
 **Decisions**
 - [ ] Pick a public contact address and a reply window, then set `CONTACT_INBOX_EMAIL` (the form is built and stays off until then; the default wording says 7 days) (P2-C5)
 - [ ] Pick an address for operator alerts (`OPERATOR_ALERT_EMAIL`) and name a second person for incidents (`docs/INCIDENT_PLAN.md`)

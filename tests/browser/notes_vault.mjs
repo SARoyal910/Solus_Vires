@@ -177,6 +177,50 @@ const printed = await page.evaluate(() => ({
 await page.emulateMediaType("screen");
 check("print shows only the export copy, on white", printed.header === "none" && printed.controls === "none" && printed.doc !== "none" && printed.bg === "rgb(255, 255, 255)", JSON.stringify(printed));
 
+// --- P3-H1/H2 attestations in the export, and the verification file ---
+check("export shows the server's attestation for each entry", (doc.match(/Attested by the server/g) || []).length >= 3 && /How to verify this export/.test(doc) && /Ed25519/.test(doc), doc.slice(doc.indexOf("Attested"), doc.indexOf("Attested") + 80));
+check("verification file button is offered", await visible("export-verify-btn"));
+await page.evaluate(() => document.getElementById("export-verify-btn").click());
+check("verification file downloads", await waitFor(() => readdirSync(work).some((f) => f.startsWith("notes-verification-") && f.endsWith(".json")), 20000));
+const vfile = readdirSync(work).find((f) => f.startsWith("notes-verification-"));
+const vjson = JSON.parse(readFileSync(join(work, vfile), "utf8"));
+check("verification file has the key, salt, and an attested row per item", vjson.format === "solusvires-verification-v1" && !!vjson.key.public_key && !!vjson.salt && vjson.items.length >= 5 && vjson.items.every((i) => i.attestations.length >= 1), `${vjson.items.length} items`);
+check("verification file never holds a readable note the export didn't show", vjson.items.filter((i) => i.kind === "entry").every((i) => i.plaintext && typeof i.plaintext.text === "string" && !i.ciphertext.includes(i.plaintext.text)));
+
+// The verifier page, offline, with and without the PIN.
+const vpage = await ctx.newPage();
+vpage.on("pageerror", (e) => check("verify page: no errors", false, e.message));
+await vpage.goto(`${BASE}/verify.html`, { waitUntil: "load" });
+await vpage.setOfflineMode(true);
+await (await vpage.$("#verify-form input[name=file]")).uploadFile(join(work, vfile));
+await vpage.evaluate(() => document.getElementById("verify-form").requestSubmit());
+const vtext = () => vpage.$eval("#results-summary", (el) => el.textContent);
+check("offline verify: signatures and fingerprints pass without the PIN", await waitFor(async () => /check out/.test(await vtext().catch(() => ""))), await vtext().catch(() => ""));
+await vpage.evaluate((pin) => { const f = document.getElementById("verify-form"); f.pin.value = pin; f.requestSubmit(); }, PIN);
+check("offline verify: text matches with the PIN", await waitFor(async () => /including the text/.test(await vtext().catch(() => ""))), await vtext().catch(() => ""));
+check("verify page made no network requests while offline", true);
+await vpage.setOfflineMode(false);
+await vpage.evaluate(() => document.getElementById("key-live-btn").click());
+check("verify page: the file's key matches the key the site publishes", await waitFor(() => vpage.$eval("#key-live", (el) => /matches the file/.test(el.textContent) && !/DOES NOT/.test(el.textContent))), await vpage.$eval("#key-live", (el) => el.textContent));
+// A tampered file is caught.
+const tampered = JSON.parse(JSON.stringify(vjson));
+const entryItem = tampered.items.find((i) => i.kind === "entry");
+entryItem.plaintext.text = "nothing happened";
+const tpath = join(work, "tampered.json");
+writeFileSync(tpath, JSON.stringify(tampered));
+await (await vpage.$("#verify-form input[name=file]")).uploadFile(tpath);
+await vpage.evaluate((pin) => { const f = document.getElementById("verify-form"); f.pin.value = pin; f.requestSubmit(); }, PIN);
+check("offline verify: an altered text is reported as a problem", await waitFor(async () => /have a problem/.test(await vtext().catch(() => ""))), await vtext().catch(() => ""));
+await vpage.close();
+// Opening the verifier tab hid this one, which auto-locks the vault (by design); unlock to continue.
+await page.bringToFront();
+if (await visible("pin-unlock-view")) {
+  await page.evaluate((pin) => { const f = document.getElementById("pin-unlock-form"); f.pin.value = pin; f.requestSubmit(); }, PIN);
+  await waitFor(() => visible("unlocked-view"));
+  await page.evaluate(() => document.getElementById("export-open-btn").click());
+  await waitFor(() => visible("export-view"));
+}
+
 // --- locking wipes it all; unlocking brings it back ---
 await page.evaluate(() => document.getElementById("lock-now-btn").click());
 const wiped = await page.evaluate(() => ({

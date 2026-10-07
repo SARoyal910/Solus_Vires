@@ -11,6 +11,7 @@ from ..models.evidence import CaseProfile, EvidenceEntry
 from ..models.vault import EvidenceAttachment, SafetyPlan
 from ..schemas.evidence import EncryptedBlob
 from ..schemas.vault import AttachmentCreate, RekeyAttachmentStage, RekeyRequest
+from . import attest
 
 logger = logging.getLogger("solusvires.vault")
 
@@ -34,9 +35,12 @@ class VaultService:
         if plan is None:
             plan = SafetyPlan(user_id=user.id, ciphertext=blob.ciphertext, iv=blob.iv)
             db.add(plan)
+            db.flush()
+            attest.record(db, user.id, "plan", plan.id, blob.ciphertext, "saved")
         else:
             plan.ciphertext = blob.ciphertext
             plan.iv = blob.iv
+            attest.record(db, user.id, "plan", plan.id, blob.ciphertext, "edited")
         db.commit()
         db.refresh(plan)
         logger.info("safety_plan_saved")
@@ -76,6 +80,10 @@ class VaultService:
             size_bytes=len(raw),
         )
         db.add(attachment)
+        db.flush()
+        # Photos are attested on the raw ciphertext bytes (the base64 form
+        # is transport); verify.html hashes the decoded bytes the same way.
+        attest.record(db, user.id, "attachment", attachment.id, raw, "saved")
         db.commit()
         db.refresh(attachment)
         logger.info("evidence_attachment_created")
@@ -160,8 +168,10 @@ class VaultService:
         for sent in payload.entries:
             entries[sent.id].ciphertext = sent.ciphertext
             entries[sent.id].iv = sent.iv
+            attest.record(db, user.id, "entry", sent.id, sent.ciphertext, "rekeyed")
         for sent in payload.attachments:
             attachment = attachments[sent.id]
+            attest.record(db, user.id, "attachment", sent.id, attachment.pending_ciphertext, "rekeyed")
             attachment.ciphertext = attachment.pending_ciphertext
             attachment.iv = attachment.pending_iv
             attachment.size_bytes = len(attachment.pending_ciphertext)
@@ -173,9 +183,11 @@ class VaultService:
         if profile is not None and payload.profile is not None:
             profile.ciphertext = payload.profile.ciphertext
             profile.iv = payload.profile.iv
+            attest.record(db, user.id, "profile", profile.id, payload.profile.ciphertext, "rekeyed")
         if plan is not None and payload.plan is not None:
             plan.ciphertext = payload.plan.ciphertext
             plan.iv = payload.plan.iv
+            attest.record(db, user.id, "plan", plan.id, payload.plan.ciphertext, "rekeyed")
         user.evidence_salt = payload.salt
         user.evidence_key_check_ciphertext = payload.key_check.ciphertext
         user.evidence_key_check_iv = payload.key_check.iv

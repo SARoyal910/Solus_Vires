@@ -118,12 +118,14 @@ Sprints 0 and 1 need no outside input and start now. Sprints 2 to 4 wait on the 
 
 | ID | Ticket | Size | Notes |
 |---|---|---|---|
-| P3-H1 | **Ciphertext attestation**: when a note, attachment or plan is saved, the server records `sha256(ciphertext)`, the server time, and a signature over both with a server key (Ed25519, rotated yearly, public keys published on `/trust.html`). Stored next to the entry; returned with it. The server learns nothing it did not already hold. | M | D11. Migration `0010` (`0009` is still the pencilled column drop from Phase 2). Test: tampering with stored ciphertext fails verification; the signature verifies against the published key |
-| P3-H2 | **Verified export**: the existing client-side export (P2-E3) gains, per entry, the ciphertext hash, the attestation time and the signature, plus a final "how to verify" page with the public key and a one-paragraph method. A standalone `verify.html` lets anyone with the export and the key check it offline. Language approved by counsel; never "admissible", always "tamper-evident". | L | Test: the export still makes zero network calls; the verifier rejects an edited export |
-| P3-H3 | **Lawyer's and advocate's page**: `/for-advocates.html` explaining what the log is, what the attestation does and does not prove, how to verify an export, and what a subpoena to us can and cannot obtain (from the threat model, counsel-reviewed). | S | Content |
-| P3-H4 | **Retention policy** (P2-F6, moved here): inactive-account retention and the deletion schedule, as counsel advises, implemented in the maintenance pass with a warning email only if the survivor opted into one. | M | Privacy page updated in the same ticket |
+| ✅ P3-H1 | **Ciphertext attestation**: when a note, attachment or plan is saved, the server records `sha256(ciphertext)`, the server time, and a signature over both with a server key (Ed25519, rotated yearly, public keys published on `/trust.html`). Stored next to the entry; returned with it. The server learns nothing it did not already hold. | M | D11. Migration `0010` (`0009` is still the pencilled column drop from Phase 2). Test: tampering with stored ciphertext fails verification; the signature verifies against the published key |
+| ✅ P3-H2 | **Verified export**: the existing client-side export (P2-E3) gains, per entry, the ciphertext hash, the attestation time and the signature, plus a final "how to verify" page with the public key and a one-paragraph method. A standalone `verify.html` lets anyone with the export and the key check it offline. Language approved by counsel; never "admissible", always "tamper-evident". | L | Test: the export still makes zero network calls; the verifier rejects an edited export |
+| ✅ P3-H3 | **Lawyer's and advocate's page**: `/for-advocates.html` explaining what the log is, what the attestation does and does not prove, how to verify an export, and what a subpoena to us can and cannot obtain (from the threat model, counsel-reviewed). | S | Content |
+| ✅ P3-H4 | **Retention policy** (P2-F6, moved here): inactive-account retention and the deletion schedule, as counsel advises, implemented in the maintenance pass with a warning email only if the survivor opted into one. | M | Privacy page updated in the same ticket |
 
 **Exit gate:** counsel has read P3-H2's wording and P3-H3; a sample export verifies offline on a machine that has never seen the site.
+
+**Status 2026-10-07:** built and tested ahead of the gate. Attestation needs `ATTESTATION_PRIVATE_KEY` in `.env`; without it exports carry no attestations and `/for-advocates.html` says the key is not published. The verification file (`notes-verification-<date>.json`) and `/verify.html` work offline; the browser suite checks a genuine file passes with and without the PIN and an altered one fails. Retention (`INACTIVE_ACCOUNT_RETENTION_DAYS`) ships off and stays off until counsel sets a period; the privacy page still says the policy is being written. `/trust.html` (Sprint 0) does not exist yet, so the key is published on `/for-advocates.html#key` for now. Every sentence on `/for-advocates.html` and in the export's "How to verify" section is for counsel to review; the wording rule (never "admissible") was followed. Migration 0012; partners become 0013.
 
 ---
 
@@ -159,7 +161,7 @@ Sprints 0 and 1 need no outside input and start now. Sprints 2 to 4 wait on the 
 | 0009 | 1 | ✅ `sessions.device_label`; `invite_emails` table (P3-J1, P3-J4) |
 | 0010 | 1 | ✅ `evidence_attachments.pending_*` staging columns for the PIN change (P3-J2) |
 | 0011 | 2 | ✅ `checkin_schedules.contact_note` (at rest), `ack_count`, `first_ack_at` (P3-I2, P3-I3) |
-| 0012 | 3 | `evidence_attestations` (entry id, kind, ciphertext hash, attested at, key id, signature) |
+| 0012 | 3 | ✅ `evidence_attestations` (kind, item id, ciphertext hash, attested at, key id, signature, reason, supersedes) |
 | 0013 | 4 | `partner_invite_codes`, `users.partner_id` (nullable) |
 | later | any | drop `users.failed_login_count`, `users.locked_until` (carried from Phase 2; the model still maps them, so the model change ships a release first) |
 

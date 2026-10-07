@@ -198,9 +198,11 @@
           <h2 id="export-title">Print or save a copy</h2>
           <div class="notice">This copy is not encrypted. A printout, a saved PDF, or a downloaded file can be read by anyone who finds it, and may sync to cloud storage. Keep it somewhere safe, or give it straight to your advocate or lawyer.</div>
           <p class="hint">To make a PDF, choose Print, then Save as PDF where your device offers it. On iPhone, pinch outward on the print preview, then use Share to save it. The text file leaves out photos.</p>
+          <p class="hint" id="export-verify-hint" hidden>The verification file lets a lawyer or advocate check, at <a href="/verify.html" target="_blank" rel="noopener">solusvires.com/verify.html</a> and without an internet connection, that the server held each entry in this exact form at the times shown, and, if you give them your PIN, that the text matches. It contains your encrypted notes and photos and the text of this export, so it is as sensitive as the PDF.</p>
           <div class="actions">
             <button type="button" class="btn primary" id="export-print-btn">Print / Save as PDF</button>
             <button type="button" class="btn" id="export-text-btn">Download as text file</button>
+            <button type="button" class="btn" id="export-verify-btn" hidden>Download verification file</button>
             <button type="button" class="btn" id="export-close-btn">Close</button>
           </div>
           <p id="export-status" class="status" aria-live="polite"></p>
@@ -212,7 +214,7 @@
 
   <footer>
     Quick Exit is available, but it cannot erase browser, network, or device history. This page locks itself after a few minutes of inactivity.
-    <p class="footer-links"><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/help-someone.html">Help someone</a></p>
+    <p class="footer-links"><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/help-someone.html">Help someone</a> · <a href="/for-advocates.html">For advocates</a></p>
   </footer>
   <script src="/shared.js"></script>
   <script src="/evidence-crypto.js"></script>

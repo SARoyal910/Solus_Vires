@@ -13,6 +13,7 @@ What's here:
 - Public pages that lead with what someone needs: in danger now, not sure if it's abuse (`/is-this-abuse.html`), or wanting to plan (`/safety.html`); plus pages for men, for friends and family, and for trusted contacts who get an alert
 - Verified directories of real hotlines, legal aid, and mental-health resources (`/resources.html`, `/legal.html`, `/recovery.html`), a find-help-in-your-state picker, and a Spanish crisis path (`/es/`)
 - `/about.html` and `/privacy.html`: who runs the site and exactly what it stores
+- `/watched-phone.html`: what the site protects and cannot on a shared or monitored device; `/for-advocates.html` and `/verify.html`: what a signed notes export proves, and an offline verifier for it
 - A contact form (`/contact.html`) that emails the owner's inbox through Brevo and stores nothing, with a stated reply window and a plain "not for emergencies" line; it says it's off when no inbox is configured (`CONTACT_INBOX_EMAIL`)
 - A Recovery &amp; Wellness page (`/recovery.html`) with a trauma-informed recovery framework and interactive grounding tools (box breathing, 5-4-3-2-1) — fully client-side, no backend or paid service required
 - FastAPI backend (health, auth, encrypted notes, check-ins)

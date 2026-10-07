@@ -102,32 +102,76 @@
   // Input: decrypted data. entries: [{ entry_date, text, created_at, photos }],
   // photos: [{ name, type, width, height, taken, size, created_at, url }].
   // Output: a plain description of the document, oldest entry first.
-  function buildModel({ profile, plan, entries, exportedAt }) {
+  // Attestations (P3-H1): the server's signed "this ciphertext existed at this
+  // time" rows, grouped per item. The export shows when an item was first
+  // attested and how many versions there have been; the verification file
+  // carries the rows themselves for verify.html.
+  function attestationSummary(rows) {
+    if (!rows || !rows.length) return null;
+    const sorted = [...rows].sort((a, b) => String(a.attested_at).localeCompare(String(b.attested_at)));
+    const first = sorted[0];
+    const latest = sorted[sorted.length - 1];
+    return {
+      firstAt: localStamp(first.attested_at),
+      versions: sorted.length,
+      rekeyed: sorted.some((r) => r.reason === "rekeyed"),
+      edited: sorted.some((r) => r.reason === "edited"),
+      latestHash: String(latest.ciphertext_sha256 || "").slice(0, 16),
+      keyId: latest.key_id,
+    };
+  }
+
+  function buildModel({ profile, plan, entries, exportedAt, attestations, attestationKey }) {
     const sorted = [...(entries || [])]
       .filter((e) => e && !e.unreadable)
       .sort((a, b) => (a.entry_date || "").localeCompare(b.entry_date || "") || String(a.created_at || "").localeCompare(String(b.created_at || "")));
     const unreadable = (entries || []).filter((e) => e && e.unreadable).length;
+    const byItem = new Map();
+    for (const row of attestations || []) {
+      const key = `${row.kind}:${row.item_id}`;
+      if (!byItem.has(key)) byItem.set(key, []);
+      byItem.get(key).push(row);
+    }
+    const forItem = (kind, id) => attestationSummary(byItem.get(`${kind}:${id}`));
     return {
       exportedAt: exportedAt || new Date(),
       profile: profile && (profile.name || profile.relationship || profile.notes) ? profile : null,
       plan: planHasContent(plan) ? plan : null,
       entries: sorted.map((e, i) => ({
         number: i + 1,
+        id: e.id,
         date: longDate(e.entry_date),
         isoDate: e.entry_date || "",
         saved: localStamp(e.created_at),
         text: e.text || "",
+        attested: forItem("entry", e.id),
         photos: (e.photos || []).map((p) => ({
           name: p.name || "photo",
           taken: p.taken ? p.taken.replace("T", " ").slice(0, 16) : "",
           added: localStamp(p.created_at),
           details: [p.width && p.height ? `${p.width}×${p.height}` : "", formatSize(p.size)].filter(Boolean).join(", "),
           url: p.url || "",
+          attested: forItem("attachment", p.id),
         })),
       })),
       unreadable,
+      attestationKey: attestationKey && attestationKey.enabled ? attestationKey : null,
+      attestedItems: byItem.size,
     };
   }
+
+  function attestLine(a) {
+    if (!a) return "";
+    const history = a.versions === 1 ? "" : ` · ${a.versions} versions${a.edited ? ", edited" : ""}${a.rekeyed ? ", re-encrypted at a PIN change" : ""}`;
+    return `Attested by the server ${a.firstAt}${history} · hash ${a.latestHash}…`;
+  }
+
+  const VERIFY_NOTE =
+    "The server recorded a signed statement each time an item was saved: the fingerprint (SHA-256) of the encrypted data " +
+    "it received and the time. It could not read the content, then or now. Anyone with the verification file from the same " +
+    "export can check those signatures offline at solusvires.com/verify.html against the public key below, and, with the " +
+    "writer's PIN, confirm the decrypted text matches this copy. This shows the data existed in this form at those times and " +
+    "has not been changed since. It is tamper-evidence, not a legal finding.";
 
   const HEADER_NOTE =
     "Exported from private notes kept on Solus Vires. The notes were decrypted on this device to make this copy. " +
@@ -171,12 +215,19 @@
     out.push("ENTRIES (oldest first)", "----------------------");
     if (!model.entries.length) out.push("No entries.");
     for (const e of model.entries) {
-      out.push("", `${e.number}. ${e.date}${e.isoDate ? ` (${e.isoDate})` : ""}`, `   Saved: ${e.saved}`, "");
+      out.push("", `${e.number}. ${e.date}${e.isoDate ? ` (${e.isoDate})` : ""}`, `   Saved: ${e.saved}`);
+      if (e.attested) out.push(`   ${attestLine(e.attested)}`);
+      out.push("");
       out.push(...e.text.split("\n").map((l) => `   ${l}`));
       if (e.photos.length) {
         out.push("", `   Photos (${e.photos.length}, not included in this text file; use Print / Save as PDF):`);
         for (const p of e.photos) out.push(`   - ${p.name}${p.taken ? `, taken ${p.taken}` : ""}${p.added ? `, added ${p.added}` : ""}${p.details ? ` (${p.details})` : ""}`);
       }
+    }
+    if (model.attestationKey) {
+      out.push("", "HOW TO VERIFY", "-------------", VERIFY_NOTE, "",
+        `Key id: ${model.attestationKey.key_id}`, `Public key (Ed25519, base64): ${model.attestationKey.public_key}`,
+        `Signed message: ${model.attestationKey.message_format}`);
     }
     out.push("", "End of export.");
     return out.join("\n") + "\n";
@@ -241,6 +292,7 @@
       const art = el("article", "export-entry");
       art.append(el("h3", null, `${e.number}. ${e.date}`));
       art.append(el("p", "export-meta", `Date given: ${e.isoDate || "none"} · Saved: ${e.saved}`));
+      if (e.attested) art.append(el("p", "export-meta export-attest", attestLine(e.attested)));
       art.append(el("p", "export-text", e.text));
       for (const p of e.photos) {
         const fig = el("figure", "export-photo");
@@ -250,14 +302,60 @@
           img.alt = p.name;
           fig.append(img);
         }
-        fig.append(el("figcaption", null, [p.name, p.taken ? `taken ${p.taken}` : "", p.added ? `added ${p.added}` : "", p.details].filter(Boolean).join(" · ")));
+        fig.append(el("figcaption", null, [p.name, p.taken ? `taken ${p.taken}` : "", p.added ? `added ${p.added}` : "", p.details, p.attested ? attestLine(p.attested) : ""].filter(Boolean).join(" · ")));
         art.append(fig);
       }
       s.append(art);
     }
     container.append(s);
+    if (model.attestationKey) {
+      const v = el("section", "export-section export-verify");
+      v.append(el("h2", null, "How to verify this export"));
+      v.append(el("p", "export-note", VERIFY_NOTE));
+      const dl = el("dl");
+      dl.append(el("dt", null, "Key id"), el("dd", "export-mono", model.attestationKey.key_id));
+      dl.append(el("dt", null, "Public key (Ed25519, base64)"), el("dd", "export-mono", model.attestationKey.public_key));
+      dl.append(el("dt", null, "Signed message"), el("dd", "export-mono", model.attestationKey.message_format));
+      v.append(dl);
+      container.append(v);
+    }
     container.append(el("p", "export-meta", "End of export."));
   }
 
-  window.NotesExport = { PLAN, buildModel, toText, renderInto, longDate, localStamp, formatSize, planHasContent };
+  // The machine-readable companion to the printed copy (P3-H2): everything
+  // verify.html needs to check the attestations offline. Ciphertext, iv and
+  // the signed rows per item, plus the plaintext this export showed, so a
+  // verifier holding the PIN can tie the two together. Still no network.
+  function buildVerificationFile({ exportedAt, attestationKey, salt, items }) {
+    return {
+      format: "solusvires-verification-v1",
+      exported_at: (exportedAt || new Date()).toISOString(),
+      verify_at: "https://solusvires.com/verify.html",
+      key: attestationKey ? {
+        key_id: attestationKey.key_id,
+        public_key: attestationKey.public_key,
+        algorithm: attestationKey.algorithm || "Ed25519",
+        message_format: attestationKey.message_format,
+      } : null,
+      salt: salt || null,
+      items: items.map((it) => ({
+        kind: it.kind,
+        id: it.id,
+        ciphertext: it.ciphertext,
+        iv: it.iv,
+        plaintext: it.plaintext === undefined ? null : it.plaintext,
+        attestations: (it.attestations || []).map((r) => ({
+          ciphertext_sha256: r.ciphertext_sha256,
+          attested_at: r.attested_at,
+          key_id: r.key_id,
+          signature: r.signature,
+          reason: r.reason,
+          supersedes: r.supersedes,
+          id: r.id,
+        })),
+      })),
+    };
+  }
+
+  window.NotesExport = { PLAN, buildModel, toText, renderInto, longDate, localStamp, formatSize, planHasContent, attestationSummary, buildVerificationFile };
 })();

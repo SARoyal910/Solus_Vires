@@ -535,6 +535,7 @@
   // building, printing, and saving the copy make no network requests at all.
 
   let exportModel = null;
+  let exportAttestations = [];
 
   function closeExport() {
     document.getElementById("export-view").hidden = true;
@@ -554,15 +555,30 @@
         opener.textContent = `Preparing photos (${i + 1} of ${photos.length})…`;
         await loadPhoto(photos[i]).catch(() => {});
       }
+      // Attestations and the key (P3-H1); both are harmless if the feature is off.
+      let attestations = [];
+      let attestationKey = null;
+      try {
+        attestations = await (await api("/api/evidence/attestations")).json();
+        attestationKey = await (await api("/api/evidence/attestation-key")).json();
+      } catch (e) {
+        attestations = [];
+      }
+      exportAttestations = attestations;
       exportModel = NotesExport.buildModel({
         profile: state.profile,
         plan: state.plan,
         entries: state.entries.map((e) => ({
           ...e,
-          photos: photosFor(e.id).map((p) => ({ ...p.meta, created_at: p.created_at, size: p.size, url: p.url })),
+          photos: photosFor(e.id).map((p) => ({ ...p.meta, id: p.id, created_at: p.created_at, size: p.size, url: p.url })),
         })),
         exportedAt: new Date(),
+        attestations,
+        attestationKey,
       });
+      const verifiable = !!exportModel.attestationKey && attestations.length > 0;
+      document.getElementById("export-verify-btn").hidden = !verifiable;
+      document.getElementById("export-verify-hint").hidden = !verifiable;
       NotesExport.renderInto(document.getElementById("export-doc"), exportModel);
       document.getElementById("vault-main").hidden = true;
       document.getElementById("export-view").hidden = false;
@@ -937,6 +953,52 @@
   document.getElementById("export-open-btn").addEventListener("click", openExport);
   document.getElementById("export-close-btn").addEventListener("click", closeExport);
   document.getElementById("export-print-btn").addEventListener("click", () => window.print());
+  document.getElementById("export-verify-btn").addEventListener("click", async () => {
+    if (!exportModel || !exportModel.attestationKey) return;
+    const status = document.getElementById("export-status");
+    status.textContent = "Preparing the verification file…";
+    try {
+      // Ciphertext is re-read from the server so the file carries exactly
+      // what was attested; the plaintext comes from this export.
+      const [saltData, rawEntries, rawPhotos, rawProfile, rawPlan] = await Promise.all([
+        (await api("/api/evidence/salt")).json(),
+        (await api("/api/evidence/entries")).json(),
+        (await api("/api/evidence/attachments")).json(),
+        (await api("/api/evidence/case-profile")).json(),
+        (await api("/api/evidence/safety-plan")).json(),
+      ]);
+      const rowsFor = (kind, id) => exportAttestations.filter((r) => r.kind === kind && r.item_id === id);
+      const items = [];
+      for (const e of rawEntries) {
+        const shown = state.entries.find((x) => x.id === e.id);
+        items.push({ kind: "entry", id: e.id, ciphertext: e.ciphertext, iv: e.iv,
+          plaintext: shown && !shown.unreadable ? { entry_date: shown.entry_date, text: shown.text } : null,
+          attestations: rowsFor("entry", e.id) });
+      }
+      for (const p of rawPhotos) {
+        const data = await (await api(`/api/evidence/attachments/${p.id}`)).json();
+        const known = state.photos.get(p.id);
+        items.push({ kind: "attachment", id: p.id, ciphertext: data.ciphertext, iv: data.iv,
+          plaintext: known && known.meta && !known.unreadable ? { name: known.meta.name, taken: known.meta.taken || null, width: known.meta.width, height: known.meta.height } : null,
+          attestations: rowsFor("attachment", p.id) });
+      }
+      if (rawProfile) {
+        const rows = exportAttestations.filter((r) => r.kind === "profile");
+        items.push({ kind: "profile", id: rows.length ? rows[0].item_id : null, ciphertext: rawProfile.ciphertext, iv: rawProfile.iv, plaintext: state.profile, attestations: rows });
+      }
+      if (rawPlan) {
+        const rows = exportAttestations.filter((r) => r.kind === "plan");
+        items.push({ kind: "plan", id: rows.length ? rows[0].item_id : null, ciphertext: rawPlan.ciphertext, iv: rawPlan.iv, plaintext: state.plan, attestations: rows });
+      }
+      const file = NotesExport.buildVerificationFile({ exportedAt: exportModel.exportedAt, attestationKey: exportModel.attestationKey, salt: saltData.salt, items });
+      const day = new Date().toISOString().slice(0, 10);
+      saveFile(`notes-verification-${day}.json`, new Blob([JSON.stringify(file, null, 1)], { type: "application/json" }));
+      status.textContent = "Verification file saved to your downloads. It contains your encrypted notes and the text of this export; treat it like the PDF.";
+    } catch (e) {
+      status.textContent = "Couldn't prepare the verification file right now.";
+    }
+  });
+
   document.getElementById("export-text-btn").addEventListener("click", () => {
     if (!exportModel) return;
     const day = new Date().toISOString().slice(0, 10);

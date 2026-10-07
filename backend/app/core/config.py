@@ -34,6 +34,8 @@ class Settings:
     checkin_alert_repeat_hours: int
     invite_emails_per_day: int
     contact_note_key: str
+    attestation_private_key: str
+    inactive_account_retention_days: int
     checkin_token_secret: str
     recovery_code_pepper: str
     trust_proxy_headers: bool
@@ -99,6 +101,12 @@ def get_settings() -> Settings:
         # only at alert time (P3-I2). 32 bytes, urlsafe base64. Empty = the
         # feature is off and the page says so.
         contact_note_key=os.getenv("CONTACT_NOTE_KEY", "").strip(),
+        # Ed25519 seed for ciphertext attestation (P3-H1). 32 bytes, urlsafe
+        # base64. Empty = no attestations are recorded.
+        attestation_private_key=os.getenv("ATTESTATION_PRIVATE_KEY", "").strip(),
+        # Delete accounts not signed in to for this many days and with no
+        # active check-in schedule (P3-H4). 0 = never, until counsel decides.
+        inactive_account_retention_days=int(os.getenv("INACTIVE_ACCOUNT_RETENTION_DAYS", "0")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
         # Server-side key for recovery-code HMACs. Never change it once codes
         # exist: every code issued under the old value would stop working.

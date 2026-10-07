@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>For advocates and lawyers | Solus Vires</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="What the private notes log is, what the signed export proves and does not prove, how to verify one offline, and what a request to us can and cannot obtain.">
+  <link rel="stylesheet" href="/shared.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M14 2 L24 6 V13 C24 19.5 19.8 24.5 14 26 C8.2 24.5 4 19.5 4 13 V6 Z" fill="url(#brand-grad)"/><path d="M14 9.3 L15.6 12.5 L19.1 13 L16.5 15.4 L17.2 18.9 L14 17.2 L10.8 18.9 L11.5 15.4 L8.9 13 L12.4 12.5 Z" fill="#fff" fill-opacity="0.94"/><defs><linearGradient id="brand-grad" x1="4" y1="2" x2="24" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#17b6ff"/><stop offset="1" stop-color="#ff2e9e"/></linearGradient></defs></svg>Solus Vires</a>
+    <nav aria-label="Primary">
+      <a href="/resources.html">Resources</a>
+      <a href="/safety.html">Safety</a>
+      <a href="/recovery.html">Recovery</a>
+      <a href="/legal.html">Legal</a>
+      <a href="/emergency.html">Emergency</a>
+      <a href="/account.html">Notes &amp; Check-ins</a>
+      <a href="/contact.html">Contact</a>
+      <a href="/es/" lang="es" hreflang="es">Español</a>
+    </nav>
+    <button class="quick-exit" id="quick-exit-btn"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M11 8H5m6 0-2.5-2.5M11 8l-2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Quick Exit</button>
+  </header>
+
+  <main>
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">For advocates, attorneys and court staff</p>
+        <h1>What a Solus Vires export is, and what it proves</h1>
+        <p>Someone may hand you a printed or PDF export of their private notes from this site, perhaps with a verification file. This page explains what you are holding, in the plainest terms we can manage, so you can decide how much weight to give it. It was written by the site's operator and has not yet been reviewed by counsel; that review is being sought and this page will say when it is done.</p>
+      </div>
+      <div class="safe-note">
+        <strong>In one sentence:</strong> the export is the survivor's own contemporaneous record, kept encrypted so that nobody but them could read it, together with the server's signed timestamps showing that each entry existed in its current form at a stated time and has not been changed since. It is tamper-evidence. It is not a certification by us of what happened.
+      </div>
+    </section>
+
+    <section class="band alt">
+      <div class="section-head">
+        <p class="eyebrow">The log</p>
+        <h2>How the notes are kept</h2>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h2>Written by the survivor, on their device</h2>
+          <p>Each entry has a date the writer chose and the time it was first saved. Entries can be edited or deleted by the writer. Photos can be attached; before a photo is saved, the browser redraws it to strip hidden metadata such as location, so the image is kept but its embedded data is not.</p>
+        </article>
+        <article class="card">
+          <h2>Encrypted before it leaves the device</h2>
+          <p>Notes, photos, the private profile and the safety plan are encrypted in the browser with a key derived from a PIN the server never receives (PBKDF2-SHA256, 600,000 rounds; AES-256-GCM). The server stores only the encrypted form. We cannot read it, recover it, or reset the PIN.</p>
+        </article>
+        <article class="card">
+          <h2>Decrypted only to make the export</h2>
+          <p>The export is produced on the survivor's device after they enter their PIN. The readable copy, printed or saved, exists only where they put it. Nothing readable is sent to us to make it.</p>
+        </article>
+        <article class="card">
+          <h2>What the server records about each save</h2>
+          <p>Each time an item is saved, the server records the SHA-256 fingerprint of the encrypted data it received, the time, and an Ed25519 signature over both. It also records the reason for a later version: edited by the writer, or re-encrypted when they changed their PIN. These rows hold fingerprints, never content.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">The signed export</p>
+        <h2>What verification shows, and what it cannot</h2>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h2>It shows</h2>
+          <ul>
+            <li>That the server held each entry, in exactly its current encrypted form, at the signed time.</li>
+            <li>That the entry has not been altered on the server since, and that any earlier versions are listed with their times and reasons.</li>
+            <li>With the writer's PIN, that the readable text in the export is what the signed encrypted data decrypts to.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2>It cannot show</h2>
+          <ul>
+            <li>That the events described happened, or happened on the date the writer gave. The signed time is when the entry was <em>saved</em>; the date in the entry is the writer's.</li>
+            <li>Who typed the entry. Accounts are a username and password; we hold no identity documents.</li>
+            <li>Anything about entries the writer deleted. Deleted entries leave no trace, by design.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2>Verifying it yourself</h2>
+          <p>Ask for the <strong>verification file</strong> (a <code>.json</code> file made at the same time as the export). Open <a href="/verify.html">solusvires.com/verify.html</a>, load the file, and compare the key id it reports with the one published below. With the survivor's PIN entered on that page, the text is compared too. The page works offline once loaded and sends nothing.</p>
+        </article>
+        <article class="card" id="key">
+          <h2>Our current signing key</h2>
+          <p>Exports are signed with the key below. Compare the key id with the one in a verification file.</p>
+          <dl>
+            <dt>Key id</dt><dd id="adv-key-id" class="export-mono">Loading…</dd>
+            <dt>Public key (Ed25519, base64)</dt><dd id="adv-key-public" class="export-mono"></dd>
+          </dl>
+          <p class="hint" id="adv-key-note"></p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band alt">
+      <div class="section-head">
+        <p class="eyebrow">Requests to us</p>
+        <h2>What a subpoena or request can and cannot obtain</h2>
+        <p>From <a href="/privacy.html">our privacy statement</a>, which is written from the code. We will respond to valid legal process, and this is what exists to produce.</p>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h2>Exists, and could be produced</h2>
+          <ul>
+            <li>That an account with a given username exists, when it was created and last used.</li>
+            <li>The encrypted notes, photos, profile and safety plan, as unreadable data, and the signed fingerprints and times described above.</li>
+            <li>How many notes and photos there are and when they were saved; whether a safety plan exists and when it changed.</li>
+            <li>Trusted contacts' nicknames and email addresses, the check-in schedule, the message to contacts if one was written, and the last 90 days of alert history.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h2>Does not exist, so cannot be produced</h2>
+          <ul>
+            <li>The readable content of any note, photo, profile or safety plan. We hold no key.</li>
+            <li>The PIN or the password.</li>
+            <li>Real names, phone numbers, or locations. We never collect them.</li>
+            <li>Which pages anyone visited, or from where. The servers keep no access logs and no IP history.</li>
+          </ul>
+        </article>
+      </div>
+      <p class="hint">Contact for legal process: see the <a href="/about.html">About</a> page.</p>
+    </section>
+  </main>
+
+  <footer>
+    If you are in immediate danger, call 911 (or your local emergency number).
+    <p class="footer-links"><a href="/about.html">About</a> · <a href="/privacy.html">Privacy</a> · <a href="/help-someone.html">Help someone</a></p>
+  </footer>
+  <script src="/for-advocates.js"></script>
+  <script src="/shared.js"></script>
+</body>
+</html>

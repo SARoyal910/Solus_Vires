@@ -40,3 +40,25 @@ class EvidenceEntryResponse(BaseModel):
     iv: str
     created_at: datetime
     updated_at: datetime
+
+
+class AttestationResponse(BaseModel):
+    """A signed "this ciphertext existed at this time" statement (P3-H1)."""
+
+    id: uuid.UUID
+    kind: str
+    item_id: uuid.UUID
+    ciphertext_sha256: str
+    attested_at: datetime
+    key_id: str
+    signature: str
+    reason: str
+    supersedes: uuid.UUID | None
+
+
+class AttestationKeyResponse(BaseModel):
+    enabled: bool
+    key_id: str | None = None
+    public_key: str | None = None
+    algorithm: str = "Ed25519"
+    message_format: str = "solusvires-attest-v1|<kind>|<item id>|<sha256 hex of ciphertext>|<attested_at ISO 8601>"

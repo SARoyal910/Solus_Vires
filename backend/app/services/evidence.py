@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ..models.auth import User
 from ..models.evidence import CaseProfile, EvidenceEntry
 from ..schemas.evidence import EncryptedBlob, KeyCheck
+from . import attest
 
 logger = logging.getLogger("solusvires.evidence")
 
@@ -59,9 +60,12 @@ class EvidenceService:
         if profile is None:
             profile = CaseProfile(user_id=user.id, ciphertext=blob.ciphertext, iv=blob.iv)
             db.add(profile)
+            db.flush()
+            attest.record(db, user.id, "profile", profile.id, blob.ciphertext, "saved")
         else:
             profile.ciphertext = blob.ciphertext
             profile.iv = blob.iv
+            attest.record(db, user.id, "profile", profile.id, blob.ciphertext, "edited")
         db.commit()
         db.refresh(profile)
         logger.info("case_profile_saved")
@@ -78,6 +82,8 @@ class EvidenceService:
     def create_entry(self, db: Session, user: User, blob: EncryptedBlob) -> EvidenceEntry:
         entry = EvidenceEntry(user_id=user.id, ciphertext=blob.ciphertext, iv=blob.iv)
         db.add(entry)
+        db.flush()
+        attest.record(db, user.id, "entry", entry.id, blob.ciphertext, "saved")
         db.commit()
         db.refresh(entry)
         logger.info("evidence_entry_created")
@@ -99,6 +105,7 @@ class EvidenceService:
         entry = self._get_owned_entry(db, user, entry_id)
         entry.ciphertext = blob.ciphertext
         entry.iv = blob.iv
+        attest.record(db, user.id, "entry", entry.id, blob.ciphertext, "edited")
         db.commit()
         db.refresh(entry)
         logger.info("evidence_entry_updated")

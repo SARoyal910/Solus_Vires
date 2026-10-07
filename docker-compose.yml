@@ -37,6 +37,10 @@ x-api-environment: &api-environment
   # Survivor's message to contacts, encrypted at rest (P3-I2). Empty = off.
   - CONTACT_NOTE_KEY=${CONTACT_NOTE_KEY:-}
   - INVITE_EMAILS_PER_DAY=${INVITE_EMAILS_PER_DAY:-10}
+  # Export attestation signing key (P3-H1). Empty = off.
+  - ATTESTATION_PRIVATE_KEY=${ATTESTATION_PRIVATE_KEY:-}
+  # Inactive-account retention in days (P3-H4). 0 = never, pending counsel.
+  - INACTIVE_ACCOUNT_RETENTION_DAYS=${INACTIVE_ACCOUNT_RETENTION_DAYS:-0}
   - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
   # The alert loop lives in the alert-worker container (SCALE.md Stage 1
   # item 5). Leave this off on the api unless the worker is down; running
