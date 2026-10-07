@@ -25,8 +25,8 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql+psycopg://solusvires:test-only@localhost:5432/solusvires_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -39,8 +39,8 @@ jobs:
     # Browser-side notes encryption, run under Node's WebCrypto.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: node --test tests/web/
@@ -57,7 +57,7 @@ jobs:
       # The click-through below registers throwaway accounts on this stack.
       BETA_SIGNUPS_ENABLED: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Self-signed cert in place of the Cloudflare origin cert
         run: |
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
@@ -78,7 +78,7 @@ jobs:
       - run: PROBE_INSECURE=1 scripts/probe_headers.sh https://localhost
       - name: Post-deploy smoke test, as run after every deploy
         run: PROBE_INSECURE=1 scripts/smoke.sh https://localhost
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: npm install --no-save --no-package-lock --prefix tests/browser puppeteer-core@23
@@ -101,7 +101,7 @@ jobs:
     # Lint the deploy, backup and test scripts (warnings and errors only).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: shellcheck -S warning scripts/*.sh
 
   browser:
@@ -110,8 +110,8 @@ jobs:
     # E7, E8), and the header, Quick Exit and plain view (P2-E1, E2, E4).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: scripts/preview.sh
