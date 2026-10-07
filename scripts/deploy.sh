@@ -62,6 +62,9 @@ if ! docker compose up -d --wait --wait-timeout 180; then
   exit 1
 fi
 docker compose ps
+# nginx re-resolves the api's address on its own (nginx/snippets/api-proxy.conf),
+# but a reload after a recreate costs nothing and covers an old config.
+docker compose exec -T web nginx -s reload
 
 echo "== 5. smoke test"
 scripts/smoke.sh "$base"

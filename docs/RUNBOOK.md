@@ -197,6 +197,17 @@ the old behaviour, except that the alert loop moves out of the api (below).
    Spaces bucket, chained after the nightly dump, with its own Healthchecks
    check so a copy that stops is noticed.
 
+**What happened on the first deploy (2026-10-07):** every container came up
+healthy, then the smoke test got 502 from `/api/health`. nginx had resolved
+`api` to an address at its own start eleven days earlier; the new
+alert-worker container was handed that address, so nginx was proxying API
+calls to a process with no web server. `docker compose exec web nginx -s reload`
+fixed it in a second. The proxy snippet now names the upstream through a
+variable so nginx re-resolves it (`nginx/snippets/api-proxy.conf`), and
+`deploy.sh` reloads nginx after the containers come up. If `/api/` ever 502s
+right after a deploy while `docker compose ps` is all healthy, that reload
+is the first thing to try.
+
 **Rolling back:** `git checkout` the previous commit and
 `docker compose up -d --wait --remove-orphans` (the flag removes the worker
 container). Migration 0008 can stay applied; nothing before it reads the
