@@ -10,12 +10,18 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 - [ ] Run the checks that need a real phone (`docs/RUNBOOK.md` "Checks that need a real phone"), including a real push and a real Brevo email (P2-E6)
 - [ ] Create the UptimeRobot and Healthchecks.io checks, set `HEALTHCHECK_PING_URL`, and run the forced test (P2-F2)
 
+**Next deploy** (`investor-ready` branch, once CI is green and it is merged to `main`)
+- [ ] `scripts/deploy.sh` as usual: migration 0008, new `alert-worker` container; confirm `docker compose ps` shows it healthy and the api log says `checkin_alert_loop_disabled` (`docs/RUNBOOK.md` "Next deploy: alert worker...")
+- [ ] Create a Postmark account, verify the sender, put `POSTMARK_SERVER_TOKEN` in `.env`, and run the one-off failover test in the runbook
+- [ ] Re-run `scripts/loadtest.sh` on a droplet-sized VM (or the staging box) so `docs/SCALE.md` §2.2 has production-shaped numbers
+- [ ] Fill the `[ ]` blanks in `docs/INVESTOR_PACK.md` from UptimeRobot, Healthchecks, the restore table and the canary log; it needs about four green canary weeks first
+
 **Decisions**
 - [ ] Pick a public contact address and a reply window, then set `CONTACT_INBOX_EMAIL` (the form is built and stays off until then; the default wording says 7 days) (P2-C5)
 - [ ] Pick an address for operator alerts (`OPERATOR_ALERT_EMAIL`) and name a second person for incidents (`docs/INCIDENT_PLAN.md`)
 - [ ] Decide whether "Is this abuse?" goes in the top menu (Recovery would move to the footer) (P2-D10)
-- [ ] About page says the outside review "is under way", but no request has been sent yet: send the requests or change the wording
-- [ ] Privacy page says backups are deleted within 30 days: keep that true when backups are copied off the droplet, or change the wording
+- [x] About page wording fixed 2026-10-07 ("we are seeking both reviews"); the requests themselves still need sending (below)
+- [x] Privacy page now mentions the encrypted off-site copy; `scripts/offsite_copy.sh` prunes the bucket at 30 days so the wording stays true (2026-10-07)
 
 **People to find**
 - [ ] Legal counsel and a DV advocacy organization, including someone experienced with male survivors; the request packets are drafted in `docs/legal/` and `docs/advocacy/` (D6, P2-C3/C4)
@@ -24,7 +30,7 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 **Housekeeping**
 - [ ] Check on the droplet that access logs are off: `docker logs --since 30m solusvires_web` should show no `GET /...` lines
 - [ ] Move `~/solusvires-backup-key.txt` off the Mac (password manager or USB); it's the only key that opens the backups. Keep a copy of `RECOVERY_CODE_PEPPER` with it
-- [ ] Get backups off the droplet: DigitalOcean droplet backups, or periodically `scp` a `.dump.age` to the Mac
+- [ ] Get backups off the droplet: turn on DigitalOcean droplet backups, create a private Spaces bucket in a Solus Vires only project, `apt install rclone`, configure the remote, add `scripts/offsite_copy.sh` to the cron line with its own Healthchecks check (`docs/RUNBOOK.md` "Backups")
 - [ ] Check the Cloudflare dashboard for a Workers or Pages project left over from the deleted `wrangler.jsonc`
 - [x] On the droplet, delete the old unused copy at `/srv/solusvires` (done 2026-10-07; the live site runs from `/root/solusvires`)
 - [x] One checkout again: `~/Projects/solusvires` is on `main` with `phase2` as the working branch; the extra worktree is gone (2026-10-07). The stale local `dev` branch and the merged `lane/*` branches can be deleted with `git branch -D dev lane/a lane/b lane/c` when convenient
