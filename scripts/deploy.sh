@@ -58,6 +58,7 @@ if ! docker compose up -d --wait --wait-timeout 180; then
   echo "deploy: a container did not become healthy. Look at:" >&2
   echo "  docker compose ps" >&2
   echo "  docker compose logs --tail 50 api" >&2
+  echo "  docker compose logs --tail 50 alert-worker" >&2
   exit 1
 fi
 docker compose ps

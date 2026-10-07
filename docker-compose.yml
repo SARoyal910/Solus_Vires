@@ -4,6 +4,53 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# Shared by the api and the alert-worker: same image, same database, same
+# secrets. Defined once so the two can never drift apart.
+x-api-environment: &api-environment
+  - PYTHONUNBUFFERED=1
+  - APP_ENV=production
+  - SITE_DIR=/usr/share/nginx/html
+  - DATABASE_URL=postgresql+psycopg://solusvires:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@db:5432/solusvires
+  - SESSION_COOKIE_SECURE=true
+  # nginx sets X-Real-IP to the real visitor; safe to trust behind it only.
+  - TRUST_PROXY_HEADERS=true
+  # Sign-ups stay invite-only until legal + advocacy review (PHASE2_PLAN D1).
+  - BETA_SIGNUPS_ENABLED=${BETA_SIGNUPS_ENABLED:-false}
+  - BETA_INVITE_CODES=${BETA_INVITE_CODES:-}
+  - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://127.0.0.1:8000}
+  - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+  - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+  - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@example.com}
+  - CHECKIN_TOKEN_SECRET=${CHECKIN_TOKEN_SECRET:-}
+  # Key for recovery-code HMACs. Required: set it once in .env and never
+  # change it, or every recovery code already issued stops working.
+  - RECOVERY_CODE_PEPPER=${RECOVERY_CODE_PEPPER:?Set RECOVERY_CODE_PEPPER}
+  - BREVO_API_KEY=${BREVO_API_KEY:-}
+  - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-no-reply@example.com}
+  - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-Solus Vires}
+  # Second email provider, tried when Brevo errors or is out of quota
+  # (SCALE.md Stage 1 item 2). Empty = Brevo only. The sender must be
+  # verified in Postmark; it defaults to BREVO_SENDER_EMAIL.
+  - POSTMARK_SERVER_TOKEN=${POSTMARK_SERVER_TOKEN:-}
+  - POSTMARK_SENDER_EMAIL=${POSTMARK_SENDER_EMAIL:-}
+  - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
+  - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
+  # The alert loop lives in the alert-worker container (SCALE.md Stage 1
+  # item 5). Leave this off on the api unless the worker is down; running
+  # both is harmless (advisory lock) but pointless.
+  - CHECKIN_ALERT_LOOP_ENABLED=${CHECKIN_ALERT_LOOP_ENABLED:-false}
+  # Contact form (D3): messages are emailed here through Brevo, never
+  # stored. Empty = the form is off and says so.
+  - CONTACT_INBOX_EMAIL=${CONTACT_INBOX_EMAIL:-}
+  - CONTACT_RESPONSE_DAYS=${CONTACT_RESPONSE_DAYS:-7}
+  # One email (never containing the IP) when one address is refused by the
+  # rate limits ABUSE_ALERT_THRESHOLD times in an hour. Empty = off.
+  - OPERATOR_ALERT_EMAIL=${OPERATOR_ALERT_EMAIL:-}
+  - ABUSE_ALERT_THRESHOLD=${ABUSE_ALERT_THRESHOLD:-50}
+  # Optional heartbeat (P2-F2): pinged after each alert pass, so a stopped
+  # alert loop pages someone. Empty = no ping. docs/RUNBOOK.md "Monitoring".
+  - HEALTHCHECK_PING_URL=${HEALTHCHECK_PING_URL:-}
+
 services:
   web:
     logging: *default-logging
@@ -29,42 +76,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      - PYTHONUNBUFFERED=1
-      - APP_ENV=production
-      - SITE_DIR=/usr/share/nginx/html
-      - DATABASE_URL=postgresql+psycopg://solusvires:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@db:5432/solusvires
-      - SESSION_COOKIE_SECURE=true
-      # nginx sets X-Real-IP to the real visitor; safe to trust behind it only.
-      - TRUST_PROXY_HEADERS=true
-      # Sign-ups stay invite-only until legal + advocacy review (PHASE2_PLAN D1).
-      - BETA_SIGNUPS_ENABLED=${BETA_SIGNUPS_ENABLED:-false}
-      - BETA_INVITE_CODES=${BETA_INVITE_CODES:-}
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://127.0.0.1:8000}
-      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
-      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
-      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@example.com}
-      - CHECKIN_TOKEN_SECRET=${CHECKIN_TOKEN_SECRET:-}
-      # Key for recovery-code HMACs. Required: set it once in .env and never
-      # change it, or every recovery code already issued stops working.
-      - RECOVERY_CODE_PEPPER=${RECOVERY_CODE_PEPPER:?Set RECOVERY_CODE_PEPPER}
-      - BREVO_API_KEY=${BREVO_API_KEY:-}
-      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-no-reply@example.com}
-      - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-Solus Vires}
-      - CHECKIN_ALERT_CHECK_SECONDS=${CHECKIN_ALERT_CHECK_SECONDS:-300}
-      - CHECKIN_ALERT_REPEAT_HOURS=${CHECKIN_ALERT_REPEAT_HOURS:-6}
-      - CHECKIN_ALERT_LOOP_ENABLED=${CHECKIN_ALERT_LOOP_ENABLED:-true}
-      # Contact form (D3): messages are emailed here through Brevo, never
-      # stored. Empty = the form is off and says so.
-      - CONTACT_INBOX_EMAIL=${CONTACT_INBOX_EMAIL:-}
-      - CONTACT_RESPONSE_DAYS=${CONTACT_RESPONSE_DAYS:-7}
-      # One email (never containing the IP) when one address is refused by the
-      # rate limits ABUSE_ALERT_THRESHOLD times in an hour. Empty = off.
-      - OPERATOR_ALERT_EMAIL=${OPERATOR_ALERT_EMAIL:-}
-      - ABUSE_ALERT_THRESHOLD=${ABUSE_ALERT_THRESHOLD:-50}
-      # Optional heartbeat (P2-F2): pinged after each alert pass, so a stopped
-      # alert loop pages someone. Empty = no ping. docs/RUNBOOK.md "Monitoring".
-      - HEALTHCHECK_PING_URL=${HEALTHCHECK_PING_URL:-}
+    environment: *api-environment
     expose:
       - "8000"
     # Production runs the code baked into the image: no source bind mount
@@ -101,6 +113,41 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+      start_interval: 2s
+
+  # The check-in alert loop, on its own (SCALE.md Stage 1 item 5): a web
+  # deploy, a slow login or an api crash never pauses alerts. Same image as
+  # the api, different command. Healthy while the heartbeat file it touches
+  # after every pass is younger than three check intervals.
+  alert-worker:
+    logging: *default-logging
+    build: ./backend
+    container_name: solusvires_alert_worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *api-environment
+    command: ["python", "-m", "app.alert_worker"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import os, sys, time
+          path = os.environ.get("ALERT_WORKER_HEARTBEAT_FILE", "/tmp/alert-worker-heartbeat")
+          limit = 3 * int(os.environ.get("CHECKIN_ALERT_CHECK_SECONDS", "300"))
+          try:
+              age = time.time() - os.stat(path).st_mtime
+          except FileNotFoundError:
+              sys.exit("alert worker has not started a loop yet")
+          if age > limit:
+              sys.exit(f"last alert pass was {int(age)}s ago, more than {limit}s: the loop is stuck")
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
       start_interval: 2s
 
   db:

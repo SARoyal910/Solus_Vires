@@ -61,6 +61,7 @@ class AlertLogEntryResponse(BaseModel):
     alert_number: int | None
     contacts_notified: int
     emails_sent: int
+    emails_via_fallback: int = 0
     pushes_sent: int
     pushes_failed: int
     created_at: datetime
