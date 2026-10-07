@@ -1,0 +1,12 @@
+# Load-test variant of the preview (SCALE.md Stage 0 item 4). Used only by
+# scripts/loadtest.sh, layered on docker-compose.test.yml under its own
+# compose project, so it never touches the live stack or the dev preview.
+# Differences from the preview: no --reload and no access log (as in
+# production), and X-Real-IP is trusted so each simulated client can have its
+# own address instead of all of them sharing 127.0.0.1 and hitting the
+# per-IP rate limits at once. Still a throwaway tmpfs database.
+services:
+  preview:
+    environment:
+      - TRUST_PROXY_HEADERS=true
+    command: sh -c "pip install -q -r requirements.txt && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log"

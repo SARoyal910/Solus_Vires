@@ -25,6 +25,9 @@ class Settings:
     brevo_api_key: str
     brevo_sender_email: str
     brevo_sender_name: str
+    postmark_server_token: str
+    postmark_sender_email: str
+    postmark_message_stream: str
     checkin_alert_check_seconds: int
     checkin_alert_loop_enabled: bool
     healthcheck_ping_url: str
@@ -72,6 +75,12 @@ def get_settings() -> Settings:
         brevo_api_key=os.getenv("BREVO_API_KEY", ""),
         brevo_sender_email=os.getenv("BREVO_SENDER_EMAIL", "no-reply@example.com"),
         brevo_sender_name=os.getenv("BREVO_SENDER_NAME", "Solus Vires"),
+        # Second email provider (SCALE.md Stage 1 item 2). Tried when Brevo
+        # fails or is out of quota. Empty = Brevo alone, as before.
+        postmark_server_token=os.getenv("POSTMARK_SERVER_TOKEN", "").strip(),
+        # Must be a sender verified in Postmark; defaults to the Brevo sender.
+        postmark_sender_email=os.getenv("POSTMARK_SENDER_EMAIL", "").strip(),
+        postmark_message_stream=os.getenv("POSTMARK_MESSAGE_STREAM", "outbound").strip() or "outbound",
         checkin_alert_check_seconds=int(os.getenv("CHECKIN_ALERT_CHECK_SECONDS", "300")),
         # On by default only in production, so a local uvicorn pointed at the
         # shared database doesn't run a second loop (review M1). The advisory

@@ -259,7 +259,8 @@ Migrations are sequenced so each ships with the sprint that needs it. After P2-A
 | 0005 | 2 | `recovery_codes.code_sha256` (+ index) |
 | 0006 | 5 | `checkin_alert_log` table |
 | 0007 | 6 | `safety_plans` and `evidence_attachments` tables |
-| 0008 | 6+ | drop `users.failed_login_count`, `users.locked_until` (after one release on P2-A5) |
+| 0008 | done 2026-10-07 | `checkin_alert_log.emails_via_fallback` (second email provider, SCALE.md Stage 1 item 2) |
+| 0009 | 6+ | drop `users.failed_login_count`, `users.locked_until` (after one release on P2-A5) |
 
 If P2-A7 uses invite codes stored in the DB rather than an env setting, it takes the next free revision in Sprint 1.
 

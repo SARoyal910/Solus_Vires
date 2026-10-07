@@ -151,7 +151,7 @@
       <div class="section-head">
         <p class="eyebrow">Your control</p>
         <h2>Deleting your data, and how long we keep it</h2>
-        <p>You can delete your account at any time from the Notes &amp; Check-ins page. That permanently removes your notes, profile, contacts, schedule, alert history, and logins from our database at once. Encrypted nightly backups are kept for up to 30 days, so deleted data disappears from those within 30 days. Trusted contacts can stop alerts at any time from the link in any email. We don't yet delete inactive accounts automatically; that policy is being written.</p>
+        <p>You can delete your account at any time from the Notes &amp; Check-ins page. That permanently removes your notes, profile, contacts, schedule, alert history, and logins from our database at once. Encrypted nightly backups, including one encrypted copy stored with our hosting provider, are kept for up to 30 days, so deleted data disappears from those within 30 days. The backups can only be opened with a key that is not kept on any server. Trusted contacts can stop alerts at any time from the link in any email. We don't yet delete inactive accounts automatically; that policy is being written.</p>
       </div>
     </section>
 
@@ -191,7 +191,7 @@
 
     <!-- Kept true by: nginx `access_log off` (nginx/conf.d/default.conf), uvicorn --no-access-log (backend/Dockerfile),
          in-memory-only rate limiter and login throttle (backend/app/core/), no-content logging (backend/app/services/),
-         30-dump backup rotation (scripts/backup.sh), opt-in-only offline copy of public pages (html/sw.js, html/offline.js), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
+         30-dump backup rotation (scripts/backup.sh) and 30-day off-site pruning (scripts/offsite_copy.sh), opt-in-only offline copy of public pages (html/sw.js, html/offline.js), 14-day SESSION_TTL_DAYS default. Update this page if any of those change.
          Terms (added 2026-10-02, P2-C2): alerts come only from the background loop in backend/app/services/checkin.py via
          Web Push and Brevo, both best-effort (backend/app/core/notifications.py); sign-ups invite-only (BETA_SIGNUPS_ENABLED);
          notes export is made in the browser from already-decrypted notes with no network calls

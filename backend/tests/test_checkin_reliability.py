@@ -159,6 +159,7 @@ def test_alert_history_records_alerts_and_stand_downs(outbox):
         "alert_number": 1,
         "contacts_notified": 1,
         "emails_sent": 1,
+        "emails_via_fallback": 0,
         "pushes_sent": 1,
         "pushes_failed": 0,
         "created_at": None,

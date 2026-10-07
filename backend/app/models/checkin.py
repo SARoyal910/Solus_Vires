@@ -106,6 +106,9 @@ class CheckinAlertLog(Base):
     alert_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     contacts_notified: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     emails_sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # How many of emails_sent the fallback provider carried (0 = all primary).
+    # Lets a delivery problem be traced to a provider without logging addresses.
+    emails_via_fallback: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pushes_sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pushes_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

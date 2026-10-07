@@ -376,7 +376,12 @@ class CheckinService:
             .all()
         )
         entry = CheckinAlertLog(
-            user_id=user.id, contacts_notified=len(contacts), emails_sent=0, pushes_sent=0, pushes_failed=0
+            user_id=user.id,
+            contacts_notified=len(contacts),
+            emails_sent=0,
+            emails_via_fallback=0,
+            pushes_sent=0,
+            pushes_failed=0,
         )
         now = datetime.now(timezone.utc)
         dead_endpoints: set[str] = set()
@@ -414,13 +419,16 @@ class CheckinService:
                     entry.pushes_failed += 1
 
             manage_url = f"{settings.public_base_url}/checkin-invite.html?token={make_contact_token(contact.id)}"
-            if send_email(
+            carried_by = send_email(
                 to_email=contact.contact_email,
                 to_name=contact.nickname,
                 subject=subject,
                 html_content=html_for(manage_url),
-            ):
+            )
+            if carried_by:
                 entry.emails_sent += 1
+                if carried_by == "postmark":
+                    entry.emails_via_fallback += 1
         return entry
 
     def _alert_contacts_for(self, db: Session, user: User, schedule: CheckinSchedule) -> None:

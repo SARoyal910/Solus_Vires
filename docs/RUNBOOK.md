@@ -6,7 +6,7 @@ How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
 ## Where things run
 
 - **Production:** a DigitalOcean droplet behind Cloudflare. It runs the
-  Docker Compose stack (nginx, api, Postgres) from the git checkout of
+  Docker Compose stack (nginx, api, alert-worker, Postgres) from the git checkout of
   **`main`** at **`/root/solusvires`**, updated with `scripts/deploy.sh`.
   Visitors reach it only through Cloudflare.
   Secrets live in `/root/solusvires/.env`, which is not in git.
@@ -148,6 +148,60 @@ starts, and fail to start if the database is at a revision they've never
 heard of. Rolling back past P2-A15 after a newer migration has run means
 downgrading first, with the *new* image still in place:
 `docker compose run --rm api alembic downgrade <revision the old code knows>`.
+
+### Next deploy: alert worker, email fallback, off-site backups (migration 0008)
+
+The first deploy of `main` after 2026-10-07 brings SCALE.md Stage 1 items 2
+and 5 and Stage 0 item 2. It adds a container, a migration and three optional
+settings. `scripts/deploy.sh` handles the build, migration and wait as usual;
+these are the parts it can't do for you.
+
+**Before pulling.** Nothing: every new setting is optional and defaults to
+the old behaviour, except that the alert loop moves out of the api (below).
+
+**What changes when `deploy.sh` runs:**
+- **Migration 0008** adds `checkin_alert_log.emails_via_fallback`
+  (additive; old code ignores it). Expect `before: 0007 (head)`,
+  `after: 0008 (head)`.
+- **A fourth container, `solusvires_alert_worker`**, runs the check-in
+  alert loop from the same image (`python -m app.alert_worker`). The api
+  no longer runs it: compose now passes `CHECKIN_ALERT_LOOP_ENABLED=false`
+  to the api unless `.env` says otherwise. If your `.env` sets
+  `CHECKIN_ALERT_LOOP_ENABLED=true`, remove the line (or leave it: both
+  loops running is harmless because of the advisory lock, but then a web
+  deploy still pauses alerts, which is what this change removes).
+  `docker compose ps` should show `alert-worker ... (healthy)`; it is
+  unhealthy when no pass has run for three check intervals (15 minutes).
+  `docker compose logs --tail 20 alert-worker` shows `alert_worker_starting`
+  and then nothing until a pass sends something; that silence is normal.
+- **The Healthchecks.io heartbeat now comes from the worker.** Nothing to
+  change: the same `HEALTHCHECK_PING_URL` is passed to both containers and
+  only the process running the loop pings. The forced test in "Monitoring"
+  changes: stopping the api tests UptimeRobot, stopping the alert-worker
+  tests Healthchecks.
+
+**After the deploy, when you have time (each is optional and independent):**
+1. **Second email provider.** Create a Postmark account (free tier is 100
+   emails a month, enough for failover, not for daily use), verify the
+   sender address (the same one as `BREVO_SENDER_EMAIL`, or set
+   `POSTMARK_SENDER_EMAIL`), and put the server token in `.env` as
+   `POSTMARK_SERVER_TOKEN`. Then `docker compose up -d --wait`. From then
+   on, when Brevo returns an error or a quota response, the message goes
+   out through Postmark instead; the alert history records how many emails
+   each alert sent that way (`emails_via_fallback`), and the api log shows
+   `email_failed_over`. A run of those lines means Brevo's cap is gone:
+   SCALE.md Stage 1 item 1. Test it once by putting a wrong `BREVO_API_KEY`
+   in `.env` for one restart and sending yourself a contact invite; the log
+   shows `email_provider_failed` for brevo and `email_failed_over` to postmark.
+2. **Off-site backup copy.** See "Backups" step 4: `rclone` to a private
+   Spaces bucket, chained after the nightly dump, with its own Healthchecks
+   check so a copy that stops is noticed.
+
+**Rolling back:** `git checkout` the previous commit and
+`docker compose up -d --wait --remove-orphans` (the flag removes the worker
+container). Migration 0008 can stay applied; nothing before it reads the
+column. If you roll back, set `CHECKIN_ALERT_LOOP_ENABLED=true` in `.env`
+first or the old api will not run the loop either, and alerts stop.
 
 ### Next deploy: what changes on the droplet (Phase 2 Sprints 2-5)
 
@@ -292,11 +346,13 @@ checked 2026-10-02).
 
 ### 2. Are check-in alerts running? Healthchecks.io heartbeat
 
-The alert loop runs inside the api every `CHECKIN_ALERT_CHECK_SECONDS`
-(300 s). After each pass that held the alert lock and finished without an
-error, it requests `HEALTHCHECK_PING_URL` (empty means no ping; a failed
-ping is logged and never affects alerts). If the pings stop, the loop has stopped,
-even if `/api/health` still answers, and Healthchecks.io emails the owner.
+The alert loop runs in the `alert-worker` container every
+`CHECKIN_ALERT_CHECK_SECONDS` (300 s). After each pass that held the alert
+lock and finished without an error, it requests `HEALTHCHECK_PING_URL`
+(empty means no ping; a failed ping is logged and never affects alerts). If
+the pings stop, the loop has stopped, even if `/api/health` still answers,
+and Healthchecks.io emails the owner. The container's own healthcheck
+(`docker compose ps`) catches the same thing locally, after 15 minutes.
 That is the case UptimeRobot can't see. Free "Hobbyist" plan: 20 checks
 (healthchecks.io/pricing, checked 2026-10-02).
 
@@ -307,17 +363,18 @@ That is the case UptimeRobot can't see. Free "Hobbyist" plan: 20 checks
    sense that anyone with it can send fake "alive" pings; keep it in `.env`
    only, never in the repo.
 4. On the droplet, add to `.env`: `HEALTHCHECK_PING_URL=https://hc-ping.com/<uuid>`,
-   then `docker compose up -d --wait` (compose passes it to the api).
+   then `docker compose up -d --wait` (compose passes it to the api and the alert-worker).
 5. Within 5 minutes the check turns green on healthchecks.io.
 6. Integrations: email to the operator (on by default).
 
 ### 3. Forced test (the P2-F2 / Sprint 5 exit gate)
 
 Do once after setup, then after any change to monitoring, at a quiet time:
-1. On the droplet: `docker compose stop api`.
-2. Expect an UptimeRobot email within about 10 minutes, and a Healthchecks.io
-   email within about 15 (period + grace).
-3. `docker compose start api`, then `docker compose up -d --wait`.
+1. On the droplet: `docker compose stop api alert-worker`.
+2. Expect an UptimeRobot email within about 10 minutes (the api is down),
+   and a Healthchecks.io email within about 15 (period + grace; the loop
+   is down).
+3. `docker compose start api alert-worker`, then `docker compose up -d --wait`.
 4. Both send a "back up" email; the healthchecks.io check is green again.
 5. Record it below and in `docs/INCIDENT_PLAN.md` (Scenario 4 drill).
 
@@ -341,12 +398,25 @@ One-time setup:
 2. On the droplet: `apt install age`, then save the public key to
    `~/solusvires-backup.recipient`.
 3. On the droplet, `crontab -e`:
-   `15 3 * * * cd /path/to/solusvires && BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/backup.sh ~/solusvires-backups >> ~/solusvires-backups/backup.log 2>&1`
-4. Get copies off the droplet: DigitalOcean's own backups/snapshots of the
-   droplet, and/or periodically `scp` the newest `.dump.age` to the Mac.
-   The files are encrypted, so storing them anywhere is safe.
+   `15 3 * * * cd /root/solusvires && BACKUP_AGE_RECIPIENT="$(cat ~/solusvires-backup.recipient)" scripts/backup.sh ~/solusvires-backups >> ~/solusvires-backups/backup.log 2>&1 && OFFSITE_REMOTE=spaces:solusvires-backups BACKUP_PING_URL=https://hc-ping.com/<uuid> scripts/offsite_copy.sh ~/solusvires-backups >> ~/solusvires-backups/backup.log 2>&1`
+4. Get copies off the droplet, automatically (SCALE.md Stage 0 item 2),
+   two ways:
+   - Turn on DigitalOcean's weekly droplet backups in the control panel.
+     This is the fast path to a whole-server restore.
+   - `scripts/offsite_copy.sh` (the second half of the cron line above)
+     copies the newest `.dump.age` to a **private** Spaces bucket in the
+     Solus Vires DigitalOcean project, checks the copied size, and deletes
+     off-site copies older than 30 days, which keeps the privacy page's
+     "up to 30 days" true. One-time: `apt install rclone`, create the
+     bucket with public listing off, make a Spaces key for it, then
+     `rclone config create spaces s3 provider=DigitalOcean access_key_id=... secret_access_key=... endpoint=<region>.digitaloceanspaces.com`.
+     Give it a Healthchecks.io check of its own (`backup-offsite`, period
+     1 day, grace 2 hours) and put its URL in `BACKUP_PING_URL`: the script
+     pings on success and `/fail` on any failure, including a stale dump.
+     Run it once by hand and confirm the file appears in the bucket.
+   The files are encrypted, so where they land matters less than that they land.
 
-Keeps the newest 30 dumps.
+Keeps the newest 30 dumps on the droplet and 30 days of copies in the bucket.
 
 ## Restore rehearsal
 
