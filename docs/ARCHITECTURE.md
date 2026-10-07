@@ -99,6 +99,10 @@ Also intentionally not built (see `docs/TODO.md` for the reasons): real-time loc
 
 Location tracking must be explicit, visible, revocable, temporary, and survivor-controlled. It must never run as hidden monitoring. Emergency-response language must not imply 911 dispatch unless the system has a real, tested integration or staffed response partnership.
 
+## Scaling and reliability
+
+Capacity estimates, single points of failure, service-level targets, the staged plan with triggers, the alert-path checks, and the weekly and quarterly checklists are in `docs/SCALE.md`.
+
 ## Branches and checkouts (2026-10-04)
 
 - `main`: what the droplet runs, from `/root/solusvires`. Deploy with `scripts/deploy.sh`.

@@ -3,6 +3,7 @@
 Solus Vires is a free, private safety and resource site for anyone being hurt by a partner or family member, whatever their gender, and for the people around them. Live at https://solusvires.com (not yet promoted; accounts are invite-only until legal and advocacy review).
 
 Where things stand: `docs/PROGRESS.md` (what's live), `docs/PHASE2_PLAN.md` (what's next), `docs/RUNBOOK.md` (deploy, backups, restore, monitoring), `docs/THREAT_MODEL.md` (who the site defends against, and how), `docs/INCIDENT_PLAN.md` (what to do when something goes wrong).
+- `docs/SCALE.md`: how far the current setup scales, what fails first, and the staged plan for growing it
 
 What's here:
 
