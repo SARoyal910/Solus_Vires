@@ -53,3 +53,6 @@ Thumbs.db
 .wrangler
 .dev.vars*
 !.dev.vars.example
+
+# The Cloudflare origin certificate lives only where nginx runs; see certs/README.md.
+certs/*.crt
