@@ -136,6 +136,10 @@ services:
         - -c
         - |
           import os, sys, time
+          from alembic.config import Config
+          from alembic.runtime.migration import MigrationContext
+          from alembic.script import ScriptDirectory
+          from sqlalchemy import create_engine
           path = os.environ.get("ALERT_WORKER_HEARTBEAT_FILE", "/tmp/alert-worker-heartbeat")
           limit = 3 * int(os.environ.get("CHECKIN_ALERT_CHECK_SECONDS", "300"))
           try:
@@ -144,6 +148,15 @@ services:
               sys.exit("alert worker has not started a loop yet")
           if age > limit:
               sys.exit(f"last alert pass was {int(age)}s ago, more than {limit}s: the loop is stuck")
+          # Same schema rule as the api: never run alerts against a schema
+          # this code does not expect (a deploy that skipped scripts/migrate.sh).
+          expected = set(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+          engine = create_engine(os.environ["DATABASE_URL"])
+          with engine.connect() as conn:
+              current = set(MigrationContext.configure(conn).get_current_heads())
+          engine.dispose()
+          if current != expected:
+              sys.exit(f"database schema is {sorted(current) or 'empty'}, this code needs {sorted(expected)}: run scripts/migrate.sh")
       interval: 60s
       timeout: 10s
       retries: 3
