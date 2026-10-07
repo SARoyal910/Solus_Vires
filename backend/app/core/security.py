@@ -76,7 +76,41 @@ def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-def create_session(db: Session, response: Response, user: User) -> None:
+_BROWSERS = (
+    ("Edg/", "Edge"),
+    ("OPR/", "Opera"),
+    ("SamsungBrowser/", "Samsung Internet"),
+    ("Firefox/", "Firefox"),
+    ("Chrome/", "Chrome"),
+    ("CriOS/", "Chrome"),
+    ("FxiOS/", "Firefox"),
+    ("Safari/", "Safari"),
+)
+_SYSTEMS = (
+    ("iPhone", "iPhone"),
+    ("iPad", "iPad"),
+    ("Android", "Android"),
+    ("Windows", "Windows"),
+    ("Mac OS X", "Mac"),
+    ("CrOS", "Chromebook"),
+    ("Linux", "Linux"),
+)
+
+
+def device_label(user_agent: str | None) -> str | None:
+    """"Safari on iPhone" from a User-Agent: browser and OS family only (P3-J1).
+
+    Deliberately lossy. The full string could fingerprint a device; the
+    label only needs to let the survivor tell their phone from their laptop.
+    """
+    if not user_agent:
+        return None
+    browser = next((name for needle, name in _BROWSERS if needle in user_agent), "Browser")
+    system = next((name for needle, name in _SYSTEMS if needle in user_agent), "a device")
+    return f"{browser} on {system}"
+
+
+def create_session(db: Session, response: Response, user: User, user_agent: str | None = None) -> None:
     settings = get_settings()
     raw_token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.session_ttl_days)
@@ -86,6 +120,7 @@ def create_session(db: Session, response: Response, user: User) -> None:
             id=_hash_token(raw_token),
             user_id=user.id,
             expires_at=expires_at,
+            device_label=device_label(user_agent),
         )
     )
     db.commit()
@@ -118,6 +153,38 @@ def delete_session(db: Session, raw_token: str) -> None:
 def delete_all_sessions(db: Session, user_id: str) -> None:
     db.query(SessionModel).filter(SessionModel.user_id == user_id).delete()
     db.commit()
+
+
+def delete_other_sessions(db: Session, user_id: uuid.UUID, keep_raw_token: str) -> int:
+    """Signs out every other device; the one making the request stays (P3-J1)."""
+    deleted = (
+        db.query(SessionModel)
+        .filter(SessionModel.user_id == user_id, SessionModel.id != _hash_token(keep_raw_token))
+        .delete()
+    )
+    db.commit()
+    return deleted
+
+
+def list_sessions(db: Session, user_id: uuid.UUID, current_raw_token: str | None) -> list[dict]:
+    """The survivor's active sessions, without tokens, hashes or IPs (P3-J1)."""
+    now = datetime.now(timezone.utc)
+    current_hash = _hash_token(current_raw_token) if current_raw_token else None
+    rows = (
+        db.query(SessionModel)
+        .filter(SessionModel.user_id == user_id, SessionModel.expires_at > now)
+        .order_by(SessionModel.last_seen_at.desc())
+        .all()
+    )
+    return [
+        {
+            "current": row.id == current_hash,
+            "device": row.device_label or "Unknown device",
+            "created_at": row.created_at,
+            "last_seen_at": row.last_seen_at,
+        }
+        for row in rows
+    ]
 
 
 def get_current_user(

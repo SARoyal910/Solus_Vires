@@ -81,15 +81,17 @@ Sprints 0 and 1 need no outside input and start now. Sprints 2 to 4 wait on the 
 
 | ID | Ticket | Size | Notes |
 |---|---|---|---|
-| P3-J1 | **"Where you're signed in"** on `account.html`: count of active sessions, each with created and last-seen time and a coarse device label from the user agent (browser and OS family only), no IPs, and a "sign out everywhere else" button. | M | `THREAT_MODEL.md` §6.2. Test: the raw session token never reaches the database (§6.4) |
-| P3-J2 | **Change the Notes PIN**: decrypt with the old PIN in the browser, re-encrypt every note, attachment and the safety plan under the new key, upload in one transaction with a new key-check, and refuse to proceed if any item fails to decrypt. Shows progress; large vaults take time. | L | `TODO.md` known gap. Test: a vault with notes, photos and a plan round-trips; an interrupted change leaves the old key working |
-| P3-J3 | **Undo for a deleted note** (short window, client-side only): a deleted entry is held in memory for 30 seconds with an "Undo" bar before the delete request is sent. | S | `THREAT_MODEL.md` §6.2. Nothing is stored server-side for the undo |
-| P3-J4 | **Daily cap on invite emails per account** (say 10), with a plain message, so one account cannot spend the email quota alerts depend on. | S | `THREAT_MODEL.md` §6.3. Test: the 11th invite in a day is refused and logged as a count |
-| P3-J5 | **"If someone has access to your phone" path**: a page and a short in-app flow that walks through what the app does and does not protect on a watched device (the notes are encrypted, the browser history is not), how to use the plain view and the low-key theme, how to clear site data, how to use a different device for the check-in, and when *not* to install the app. Reviewed by the advocacy reviewer when that review happens; ships before it with the current best wording. | M | Content plus small UI. Links from the homepage "not sure what's happening" branch and from `account.html` |
-| P3-J6 | **Argon2id in the browser** for the Notes key (WASM), replacing PBKDF2 at 600k iterations: faster on old phones, stronger against offline guessing of a leaked database. Migration is lazy: a vault is upgraded on its next successful unlock, with the key-check rewritten. | L | `PHASE2_PLAN.md` §5 risk. The WASM must be self-hosted (CSP, no third parties). Test: old vaults still unlock; upgraded vaults use the new parameters |
-| P3-J7 | **Tests the threat model asked for**: contact's "stop" and the survivor's contact removal. | S | `THREAT_MODEL.md` §6.4 |
+| ✅ P3-J1 | **"Where you're signed in"** on `account.html`: count of active sessions, each with created and last-seen time and a coarse device label from the user agent (browser and OS family only), no IPs, and a "sign out everywhere else" button. | M | `THREAT_MODEL.md` §6.2. Test: the raw session token never reaches the database (§6.4) |
+| ✅ P3-J2 | **Change the Notes PIN**: decrypt with the old PIN in the browser, re-encrypt every note, attachment and the safety plan under the new key, upload in one transaction with a new key-check, and refuse to proceed if any item fails to decrypt. Shows progress; large vaults take time. | L | `TODO.md` known gap. Test: a vault with notes, photos and a plan round-trips; an interrupted change leaves the old key working |
+| ✅ P3-J3 | **Undo for a deleted note** (short window, client-side only): a deleted entry is held in memory for 30 seconds with an "Undo" bar before the delete request is sent. | S | `THREAT_MODEL.md` §6.2. Nothing is stored server-side for the undo |
+| ✅ P3-J4 | **Daily cap on invite emails per account** (say 10), with a plain message, so one account cannot spend the email quota alerts depend on. | S | `THREAT_MODEL.md` §6.3. Test: the 11th invite in a day is refused and logged as a count |
+| ✅ P3-J5 | **"If someone has access to your phone" path**: a page and a short in-app flow that walks through what the app does and does not protect on a watched device (the notes are encrypted, the browser history is not), how to use the plain view and the low-key theme, how to clear site data, how to use a different device for the check-in, and when *not* to install the app. Reviewed by the advocacy reviewer when that review happens; ships before it with the current best wording. | M | Content plus small UI. Links from the homepage "not sure what's happening" branch and from `account.html` |
+| ☐ P3-J6 | **Argon2id in the browser** for the Notes key (WASM), replacing PBKDF2 at 600k iterations: faster on old phones, stronger against offline guessing of a leaked database. Migration is lazy: a vault is upgraded on its next successful unlock, with the key-check rewritten. | L | `PHASE2_PLAN.md` §5 risk. The WASM must be self-hosted (CSP, no third parties). Test: old vaults still unlock; upgraded vaults use the new parameters. **Deferred 2026-10-07, on purpose:** it means vendoring a third-party WebAssembly binary into the key-derivation path and adding `'wasm-unsafe-eval'` to the CSP, which deserves its own review rather than riding in a sprint of six other tickets. The rekey flow built for P3-J2 is the migration path: a KDF upgrade is a "PIN change" to the same PIN under new parameters, so the hard half is done |
+| ✅ P3-J7 | **Tests the threat model asked for**: contact's "stop" and the survivor's contact removal. | S | `THREAT_MODEL.md` §6.4 |
 
 **Exit gate:** a survivor can see and end their other sessions, change their PIN without losing anything, and read a reviewed path for the watched-phone case; the invite cap is live.
+
+**Status 2026-10-07:** built and tested, except P3-J6 (deferred, see its row). `watched-phone.html` ships with the operator's wording and says on the page that the advocacy review is pending. Migrations 0009 (sessions label, invite log) and 0010 (rekey staging), so the ledger in §3 shifts: attestation becomes 0011, partners 0012, contact notes 0013.
 
 ---
 
@@ -152,10 +154,12 @@ Sprints 0 and 1 need no outside input and start now. Sprints 2 to 4 wait on the 
 
 | Rev | Sprint | Change |
 |---|---|---|
-| 0009 | any | drop `users.failed_login_count`, `users.locked_until` (carried from Phase 2; after one release on P2-A5, which has long passed) |
-| 0010 | 3 | `evidence_attestations` (entry id, kind, ciphertext hash, attested at, key id, signature) |
-| 0011 | 4 | `partner_invite_codes`, `users.partner_id` (nullable) |
-| 0012 | 2 | `checkin_contact_notes` (encrypted at rest), `checkin_alert_acks` (alert id, count, first at) |
+| 0009 | 1 | ✅ `sessions.device_label`; `invite_emails` table (P3-J1, P3-J4) |
+| 0010 | 1 | ✅ `evidence_attachments.pending_*` staging columns for the PIN change (P3-J2) |
+| 0011 | 3 | `evidence_attestations` (entry id, kind, ciphertext hash, attested at, key id, signature) |
+| 0012 | 4 | `partner_invite_codes`, `users.partner_id` (nullable) |
+| 0013 | 2 | `checkin_contact_notes` (encrypted at rest), `checkin_alert_acks` (alert id, count, first at) |
+| later | any | drop `users.failed_login_count`, `users.locked_until` (carried from Phase 2; the model still maps them, so the model change ships a release first) |
 
 All additive. Anything dropped ships a release after the code stops using it (`SCALE.md` §6).
 

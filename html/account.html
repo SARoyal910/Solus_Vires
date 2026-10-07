@@ -113,10 +113,21 @@
         <div class="actions">
           <a class="btn primary" href="/log.html">Go to Notes</a>
           <a class="btn" href="/checkin.html">Manage check-ins</a>
-          <button type="button" class="btn" id="logout-btn">Log out</button>
-          <button type="button" class="btn danger" id="logout-all-btn">Log out everywhere</button>
+          <button type="button" class="btn" id="logout-btn">Sign out</button>
+          <button type="button" class="btn danger" id="logout-all-btn">Sign out everywhere</button>
         </div>
         <p id="account-status" class="status" aria-live="polite"></p>
+      </article>
+
+      <article class="card" id="sessions-card">
+        <h2>Where you're signed in</h2>
+        <p>Every device that is signed in to this account. If you see one you don't recognise, sign it out and then change your password. We record the kind of browser and device, never where it is.</p>
+        <ul id="sessions-list" class="sessions-list" aria-live="polite"></ul>
+        <div class="actions">
+          <button type="button" class="btn" id="logout-others-btn">Sign out everywhere else</button>
+        </div>
+        <p id="sessions-status" class="status" aria-live="polite"></p>
+        <p class="muted small">If someone else may have access to your phone or computer, read <a href="/watched-phone.html">If someone has access to your phone</a>.</p>
       </article>
 
       <article class="card" id="delete-account-card">

@@ -38,8 +38,8 @@ Engineering and content work is tracked ticket by ticket in `docs/PHASE2_PLAN.md
 **Blocked until the reviews come back**
 - Work through the feedback (P2-C7), the retention policy (P2-F6), reopening sign-ups (P2-B10), freezing `DESIGN2.md`
 
-**Known gaps, now planned** (from `docs/THREAT_MODEL.md` §6, scheduled in `docs/PHASE3_PLAN.md` Sprint 1)
-- A way to change the Notes PIN (P3-J2); a "where you're signed in" view (P3-J1); a cap on invite emails per account (P3-J4)
+**Known gaps, closed 2026-10-07** (from `docs/THREAT_MODEL.md` §6; `docs/PHASE3_PLAN.md` Sprint 1)
+- ~~A way to change the Notes PIN (P3-J2); a "where you're signed in" view (P3-J1); a cap on invite emails per account (P3-J4)~~ built; live from the next deploy (migrations 0009, 0010)
 - Cosmetic: the signed-out `/api/auth/me` check logs a 401 in the browser console (`docs/RUNBOOK.md` "Expected console noise")
 
 ## Deliberately not planned

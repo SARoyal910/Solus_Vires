@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -42,3 +44,15 @@ class DeleteAccountRequest(BaseModel):
 
 class DeleteAccountResponse(BaseModel):
     ok: bool
+
+
+class SessionInfo(BaseModel):
+    current: bool
+    device: str
+    created_at: datetime
+    last_seen_at: datetime
+
+
+class LogoutOthersResponse(BaseModel):
+    ok: bool
+    signed_out: int

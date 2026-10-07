@@ -59,5 +59,9 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    # Coarse, from the User-Agent at sign-in: "Safari on iPhone", "Chrome on
+    # Windows". Browser and OS family only, never the full string, never an IP
+    # (P3-J1). Lets the survivor recognise their own devices in the list.
+    device_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")

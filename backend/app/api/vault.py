@@ -15,7 +15,15 @@ from ..core.security import get_current_user
 from ..models.auth import User
 from ..models.vault import EvidenceAttachment
 from ..schemas.evidence import EncryptedBlob
-from ..schemas.vault import AttachmentCreate, AttachmentData, AttachmentInfo, SafetyPlanResponse
+from ..schemas.vault import (
+    AttachmentCreate,
+    AttachmentData,
+    AttachmentInfo,
+    RekeyAttachmentStage,
+    RekeyRequest,
+    RekeyResponse,
+    SafetyPlanResponse,
+)
 from ..services.vault import VaultService
 
 router = APIRouter(prefix="/api/evidence", tags=["evidence"])
@@ -98,3 +106,29 @@ async def delete_attachment(
 ) -> dict[str, bool]:
     service.delete_attachment(db, user, attachment_id)
     return {"ok": True}
+
+
+# ---------- PIN change (P3-J2) ----------
+
+
+@router.post("/attachments/{attachment_id}/rekey")
+async def stage_rekeyed_attachment(
+    attachment_id: uuid.UUID,
+    payload: RekeyAttachmentStage,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, bool]:
+    """Stages one photo re-encrypted under the new PIN; nothing live changes yet."""
+    service.stage_rekeyed_attachment(db, user, attachment_id, payload)
+    return {"ok": True}
+
+
+@router.post("/rekey", response_model=RekeyResponse)
+async def rekey(
+    payload: RekeyRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RekeyResponse:
+    """Swaps every note, photo, the profile and the plan to the new PIN at once."""
+    entries, attachments = service.rekey(db, user, payload)
+    return RekeyResponse(ok=True, entries=entries, attachments=attachments)

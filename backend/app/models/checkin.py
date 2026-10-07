@@ -112,3 +112,19 @@ class CheckinAlertLog(Base):
     pushes_sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pushes_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+
+
+class InviteEmail(Base):
+    """One row per trusted-contact invite email sent, for the daily cap (P3-J4).
+
+    The alert path depends on the email quota; this stops one account spending
+    it. Rows older than a day are swept by the maintenance pass. No addresses.
+    """
+
+    __tablename__ = "invite_emails"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sent_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)

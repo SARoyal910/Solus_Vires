@@ -17,7 +17,66 @@
     loggedOutView.hidden = true;
     loggedInView.hidden = false;
     document.getElementById("me-username").textContent = username;
+    loadSessions();
   }
+
+  // Where you're signed in (P3-J1). The server sends device family and
+  // times only; there is nothing here that could place a device.
+  function describeWhen(iso) {
+    const then = new Date(iso);
+    const minutes = Math.round((Date.now() - then.getTime()) / 60000);
+    if (minutes < 2) return "just now";
+    if (minutes < 60) return minutes + " minutes ago";
+    const hours = Math.round(minutes / 60);
+    if (hours < 48) return hours + (hours === 1 ? " hour ago" : " hours ago");
+    return Math.round(hours / 24) + " days ago";
+  }
+
+  async function loadSessions() {
+    const list = document.getElementById("sessions-list");
+    try {
+      const res = await fetch("/api/auth/sessions", { credentials: "include" });
+      if (!res.ok) return;
+      const rows = await res.json();
+      list.replaceChildren();
+      for (const row of rows) {
+        const li = document.createElement("li");
+        const device = document.createElement("strong");
+        device.textContent = row.device;
+        li.appendChild(device);
+        if (row.current) {
+          const tag = document.createElement("span");
+          tag.className = "tag";
+          tag.textContent = "this device";
+          li.appendChild(document.createTextNode(" "));
+          li.appendChild(tag);
+        }
+        const when = document.createElement("span");
+        when.className = "muted";
+        when.textContent = " · last used " + describeWhen(row.last_seen_at) + ", signed in " + describeWhen(row.signed_in_at || row.created_at);
+        li.appendChild(when);
+        list.appendChild(li);
+      }
+      document.getElementById("logout-others-btn").disabled = rows.length < 2;
+    } catch (e) {
+      // Leave the list as it was; this card is informational.
+    }
+  }
+
+  document.getElementById("logout-others-btn").addEventListener("click", async () => {
+    const status = document.getElementById("sessions-status");
+    status.textContent = "Signing out other devices...";
+    const res = await fetch("/api/auth/logout-others", { method: "POST", credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      status.textContent = data.signed_out === 0
+        ? "No other devices were signed in."
+        : "Signed out " + data.signed_out + (data.signed_out === 1 ? " other device." : " other devices.") + " If you didn't recognise it, change your password too.";
+      await loadSessions();
+    } else {
+      status.textContent = "Couldn't sign out other devices. Try again.";
+    }
+  });
 
   async function refreshSession() {
     try {

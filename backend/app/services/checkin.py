@@ -14,8 +14,9 @@ from ..core.db import SessionLocal, engine
 from ..core.notifications import PushSubscriptionExpired, ping_healthcheck, send_email, send_push
 from ..core.security import sweep_expired_sessions
 from ..models.auth import User
-from ..models.checkin import CheckinAlertLog, CheckinSchedule, PushSubscription, TrustedContact
+from ..models.checkin import CheckinAlertLog, CheckinSchedule, InviteEmail, PushSubscription, TrustedContact
 from ..schemas.checkin import PushSubscriptionRequest, ScheduleUpdateRequest, TrustedContactCreate
+from .vault import VaultService
 
 logger = logging.getLogger("solusvires.checkin")
 
@@ -123,8 +124,29 @@ class CheckinService:
             .all()
         )
 
-    def _send_invite_email(self, user: User, contact: TrustedContact) -> None:
+    def _check_invite_cap(self, db: Session, user: User) -> None:
+        """Refuses the invite when the account has sent its daily share (P3-J4)."""
         settings = get_settings()
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        sent = (
+            db.query(func.count(InviteEmail.id))
+            .filter(InviteEmail.user_id == user.id, InviteEmail.sent_at > since)
+            .scalar()
+        )
+        if sent >= settings.invite_emails_per_day:
+            logger.info("invite_cap_reached")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"You've sent {settings.invite_emails_per_day} invites in the last day, which is the most "
+                    "one account can send. Try again tomorrow."
+                ),
+            )
+
+    def _send_invite_email(self, db: Session, user: User, contact: TrustedContact) -> None:
+        settings = get_settings()
+        db.add(InviteEmail(user_id=user.id))
+        db.commit()
         accept_url = f"{settings.public_base_url}/checkin-invite.html?token={make_contact_token(contact.id)}"
         send_email(
             to_email=contact.contact_email,
@@ -134,6 +156,7 @@ class CheckinService:
         )
 
     def add_contact(self, db: Session, user: User, payload: TrustedContactCreate) -> TrustedContact:
+        self._check_invite_cap(db, user)
         contact = TrustedContact(
             user_id=user.id,
             nickname=payload.nickname.strip(),
@@ -144,7 +167,7 @@ class CheckinService:
         db.commit()
         db.refresh(contact)
 
-        self._send_invite_email(user, contact)
+        self._send_invite_email(db, user, contact)
         logger.info("trusted_contact_invited")
         return contact
 
@@ -166,6 +189,7 @@ class CheckinService:
 
     def resend_invite(self, db: Session, user: User, contact_id: uuid.UUID) -> TrustedContact:
         contact = self._get_owned_contact(db, user, contact_id)
+        self._check_invite_cap(db, user)
         # A contact who stopped alerts can be invited again: they get a fresh
         # invite and nothing reaches them unless they accept it again.
         if contact.status not in ("pending", "declined", "revoked"):
@@ -178,7 +202,7 @@ class CheckinService:
         db.commit()
         db.refresh(contact)
 
-        self._send_invite_email(user, contact)
+        self._send_invite_email(db, user, contact)
         logger.info("trusted_contact_invite_resent")
         return contact
 
@@ -555,7 +579,14 @@ class CheckinService:
                 db.query(CheckinAlertLog).filter(
                     CheckinAlertLog.created_at < datetime.now(timezone.utc) - ALERT_LOG_RETENTION
                 ).delete()
+                db.query(InviteEmail).filter(
+                    InviteEmail.sent_at < datetime.now(timezone.utc) - timedelta(hours=25)
+                ).delete()
                 db.commit()
+                # Photos staged by a PIN change that never finished (P3-J2).
+                # A change in progress completes within minutes; the pass
+                # runs every five, so anything still staged here is abandoned.
+                VaultService().discard_stale_rekey_copies(db)
             if deleted:
                 logger.info("expired_sessions_swept", extra={"count": deleted})
         except Exception:

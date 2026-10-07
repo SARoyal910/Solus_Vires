@@ -10,11 +10,13 @@ from ..schemas.auth import (
     DeleteAccountResponse,
     LoginRequest,
     LoginResponse,
+    LogoutOthersResponse,
     MeResponse,
     RecoverRequest,
     RecoverResponse,
     RegisterRequest,
     RegisterResponse,
+    SessionInfo,
 )
 from ..services.auth import AuthService
 
@@ -38,7 +40,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> R
 async def login(
     payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)
 ) -> LoginResponse:
-    service.login(db, response, payload, client_ip(request))
+    service.login(db, response, payload, client_ip(request), request.headers.get("user-agent"))
     return LoginResponse(ok=True)
 
 
@@ -61,6 +63,26 @@ async def logout_all(
 ) -> LoginResponse:
     service.logout_all(db, response, user)
     return LoginResponse(ok=True)
+
+
+@router.get("/sessions", response_model=list[SessionInfo])
+async def sessions(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    sv_session: str | None = Cookie(default=None),
+) -> list[SessionInfo]:
+    """Where you're signed in (P3-J1): device family and times, nothing that identifies a network."""
+    return [SessionInfo(**row) for row in service.sessions(db, user, sv_session)]
+
+
+@router.post("/logout-others", response_model=LogoutOthersResponse)
+async def logout_others(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    sv_session: str | None = Cookie(default=None),
+) -> LogoutOthersResponse:
+    """Signs out every device except this one (P3-J1)."""
+    return LogoutOthersResponse(ok=True, signed_out=service.logout_others(db, user, sv_session or ""))
 
 
 @router.post("/recover", response_model=RecoverResponse, dependencies=[Depends(recover_limiter)])

@@ -55,3 +55,10 @@ class EvidenceAttachment(Base):
     meta_iv: Mapped[str] = mapped_column(Text, nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    # A PIN change (P3-J2) re-encrypts every image in the browser and stages
+    # each new copy here, tagged with the change's id, before one request
+    # swaps all of them in. Until that request succeeds the live columns are
+    # untouched, so an interrupted change leaves the old PIN working.
+    pending_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    pending_iv: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pending_rekey_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

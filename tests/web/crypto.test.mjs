@@ -72,3 +72,26 @@ test("photo bytes round-trip, and a wrong PIN can't read them (P2-E7)", async ()
   await assert.rejects(C.decryptBytes(wrongKey, blob.ciphertext, blob.iv));
   assert.equal(Buffer.from(blob.ciphertext, "base64").length, bytes.length + 16);
 });
+
+
+test("re-encryption keeps the plaintext and retires the old key (P3-J2)", async () => {
+  const otherSalt = C.generateSaltBase64();
+  const newKey = await C.deriveKey("harbor-violet-kettle", otherSalt);
+  const note = { entry_date: "2026-10-07", text: "Changed the locks." };
+  const old = await C.encryptJSON(rightKey, note);
+  const fresh = await C.reencryptJSON(rightKey, newKey, old);
+  assert.notEqual(fresh.ciphertext, old.ciphertext);
+  assert.deepEqual(await C.decryptJSON(newKey, fresh.ciphertext, fresh.iv), note);
+  await assert.rejects(C.decryptJSON(rightKey, fresh.ciphertext, fresh.iv));
+
+  const bytes = new Uint8Array([255, 216, 255, 1, 2, 3]);
+  const oldBytes = await C.encryptBytes(rightKey, bytes);
+  const freshBytes = await C.reencryptBytes(rightKey, newKey, oldBytes);
+  assert.deepEqual(new Uint8Array(await C.decryptBytes(newKey, freshBytes.ciphertext, freshBytes.iv)), bytes);
+});
+
+test("re-encryption under the wrong current key fails rather than producing garbage", async () => {
+  const newKey = await C.deriveKey("harbor-violet-kettle", C.generateSaltBase64());
+  const old = await C.encryptJSON(rightKey, { text: "private" });
+  await assert.rejects(C.reencryptJSON(wrongKey, newKey, old));
+});

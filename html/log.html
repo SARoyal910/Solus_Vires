@@ -88,7 +88,7 @@
       </div>
 
       <div class="notice" id="short-pin-notice" hidden>
-        Your PIN is shorter than 12 characters. Short PINs are much easier to guess if our database were ever stolen. A way to change your PIN isn't built yet; until it is, keep this device and your PIN private.
+        Your PIN is shorter than 12 characters. Short PINs are much easier to guess if our database were ever stolen. <a href="#change-pin">Change it to a longer one</a>; a few unrelated words work well.
       </div>
 
       <div class="notice" id="first-save-warning" hidden>
@@ -163,7 +163,34 @@
           <input type="search" id="entry-search" autocomplete="off">
         </label>
         <p id="search-status" class="hint" aria-live="polite"></p>
+        <div id="undo-bar" class="undo-bar" role="status" aria-live="polite" hidden>
+          <span id="undo-text"></span>
+          <button type="button" class="btn small" id="undo-btn">Undo</button>
+        </div>
         <div id="entries-list" class="grid two"></div>
+
+        <article class="card" id="change-pin">
+          <h2>Change your PIN</h2>
+          <p>Every note, photo and your safety plan is re-encrypted on this device under the new PIN and saved in one step. If anything goes wrong partway, nothing changes and your current PIN keeps working. Larger vaults take a minute; keep this page open until it says it's done.</p>
+          <form id="change-pin-form">
+            <label>
+              Current PIN
+              <input type="password" name="current_pin" required autocomplete="off">
+            </label>
+            <label>
+              New PIN (12+ characters)
+              <input type="password" name="new_pin" minlength="12" required autocomplete="off" aria-describedby="change-pin-strength">
+            </label>
+            <p id="change-pin-strength" class="pin-strength" aria-live="polite"></p>
+            <label>
+              New PIN again
+              <input type="password" name="new_pin_confirm" minlength="12" required autocomplete="off">
+            </label>
+            <button type="submit" class="btn">Change PIN</button>
+            <p id="change-pin-status" class="status" aria-live="polite"></p>
+          </form>
+          <p class="hint">Write the new PIN down in the same safe place as your recovery codes. Nobody can reset it, including us.</p>
+        </article>
       </div>
 
       <section id="export-view" hidden aria-labelledby="export-title">

@@ -12,9 +12,11 @@ from ..core.login_throttle import login_throttle
 from ..core.security import (
     create_session,
     delete_all_sessions,
+    delete_other_sessions,
     delete_session,
     generate_recovery_codes,
     hash_secret,
+    list_sessions,
     normalize_recovery_code,
     recovery_code_digest,
     register_failed_login,
@@ -76,7 +78,9 @@ class AuthService:
         logger.info("account_registered")
         return user, codes
 
-    def login(self, db: Session, response: Response, payload: LoginRequest, client_ip: str) -> User:
+    def login(
+        self, db: Session, response: Response, payload: LoginRequest, client_ip: str, user_agent: str | None = None
+    ) -> User:
         login_throttle.check(client_ip, payload.username)
 
         user = db.query(User).filter(User.username == payload.username).first()
@@ -92,7 +96,7 @@ class AuthService:
 
         login_throttle.record_success(client_ip, payload.username)
         reset_failed_logins(db, user)
-        create_session(db, response, user)
+        create_session(db, response, user, user_agent)
         logger.info("account_login")
         return user
 
@@ -104,6 +108,14 @@ class AuthService:
         delete_all_sessions(db, str(user.id))
         response.delete_cookie("sv_session", path="/")
         logger.info("account_logout_all")
+
+    def logout_others(self, db: Session, user: User, raw_token: str) -> int:
+        count = delete_other_sessions(db, user.id, raw_token)
+        logger.info("account_logout_others")
+        return count
+
+    def sessions(self, db: Session, user: User, raw_token: str | None) -> list[dict]:
+        return list_sessions(db, user.id, raw_token)
 
     def recover(self, db: Session, response: Response, payload: RecoverRequest) -> None:
         user = db.query(User).filter(User.username == payload.username).first()

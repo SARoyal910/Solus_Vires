@@ -193,13 +193,63 @@ check("after unlock the plan comes back", (await page.evaluate(() => document.ge
   && (await page.evaluate(() => document.getElementById("plan-form").elements["check:id"].checked)));
 check("after unlock the photo is listed on its entry", /IMG_0001\.jpg/.test(await text("#entries-list")));
 
-// Deleting the entry deletes its photo on the server.
-await page.evaluate(() => {
+// --- P3-J2 change PIN: everything re-encrypted, old PIN dead, nothing lost ---
+const NEW_PIN = "kettle-harbor-" + crypto.randomBytes(4).toString("hex");
+const beforeRekey = await page.evaluate(async () => ({
+  salt: (await (await fetch("/api/evidence/salt")).json()).salt,
+  entries: (await (await fetch("/api/evidence/entries")).json()).map((e) => e.ciphertext).sort(),
+  photo: (await (await fetch("/api/evidence/attachments")).json())[0].iv,
+}));
+await page.evaluate((cur, nxt) => {
+  const f = document.getElementById("change-pin-form");
+  f.current_pin.value = "wrong-" + cur; f.new_pin.value = nxt; f.new_pin_confirm.value = nxt; f.requestSubmit();
+}, PIN, NEW_PIN);
+check("change PIN refuses a wrong current PIN", await waitFor(async () => /isn't your current PIN/.test(await text("#change-pin-status"))), await text("#change-pin-status"));
+await page.evaluate((cur, nxt) => {
+  const f = document.getElementById("change-pin-form");
+  f.current_pin.value = cur; f.new_pin.value = nxt; f.new_pin_confirm.value = nxt; f.requestSubmit();
+}, PIN, NEW_PIN);
+check("change PIN completes", await waitFor(async () => /^Done\./.test(await text("#change-pin-status")), 60000), await text("#change-pin-status"));
+const afterRekey = await page.evaluate(async () => ({
+  salt: (await (await fetch("/api/evidence/salt")).json()).salt,
+  entries: (await (await fetch("/api/evidence/entries")).json()).map((e) => e.ciphertext).sort(),
+  photo: (await (await fetch("/api/evidence/attachments")).json())[0].iv,
+}));
+check("after the change: new salt, every note and the photo re-encrypted", afterRekey.salt !== beforeRekey.salt && afterRekey.entries.every((c) => !beforeRekey.entries.includes(c)) && afterRekey.photo !== beforeRekey.photo);
+check("the page keeps working under the new key without relocking", (await page.$$("#entries-list .entry-card")).length === 3);
+
+await page.evaluate(() => document.getElementById("lock-now-btn").click());
+await waitFor(() => visible("pin-unlock-view"));
+await page.evaluate((pin) => { const f = document.getElementById("pin-unlock-form"); f.pin.value = pin; f.requestSubmit(); }, PIN);
+check("the old PIN no longer unlocks", await waitFor(async () => /Incorrect PIN/.test(await text("#pin-unlock-status"))), await text("#pin-unlock-status"));
+await page.evaluate((pin) => { const f = document.getElementById("pin-unlock-form"); f.pin.value = pin; f.requestSubmit(); }, NEW_PIN);
+check("the new PIN unlocks", await waitFor(() => visible("unlocked-view")));
+await waitFor(async () => (await page.$$("#entries-list .entry-card")).length === 3);
+check("after the change every note is readable", /car keys/.test(await text("#entries-list")) && /Shouting about money/.test(await text("#entries-list")) && !/Unreadable/.test(await text("#entries-list")));
+check("after the change the plan is readable", (await page.evaluate(() => document.getElementById("plan-form").elements["field:code_word"].value)) === "blue kettle");
+check("after the change the photo is readable", /IMG_0001\.jpg/.test(await text("#entries-list")));
+
+// --- P3-J3 delete with undo, then deleting the entry deletes its photo on the server ---
+const clickDelete = () => page.evaluate(() => {
   const card = [...document.querySelectorAll(".entry-card")].find((c) => c.textContent.includes("Photo of the message"));
   [...card.querySelectorAll("button")].find((b) => b.textContent === "Delete").click();
 });
-await waitFor(async () => (await page.$$("#entries-list .entry-card")).length === 2);
-check("deleting an entry deletes its photos", (await page.evaluate(async () => (await (await fetch("/api/evidence/attachments")).json()).length)) === 0);
+const serverCounts = () => page.evaluate(async () => [
+  (await (await fetch("/api/evidence/entries")).json()).length,
+  (await (await fetch("/api/evidence/attachments")).json()).length,
+]);
+await clickDelete();
+check("delete hides the entry and offers undo", await waitFor(() => visible("undo-bar")) && (await page.$$eval("#entries-list .entry-card", (c) => c.filter((x) => !x.hidden).length)) === 2, await text("#undo-text"));
+check("nothing has reached the server yet", JSON.stringify(await serverCounts()) === "[3,1]");
+await page.evaluate(() => document.getElementById("undo-btn").click());
+check("undo brings the entry back", (await page.$$eval("#entries-list .entry-card", (c) => c.filter((x) => !x.hidden).length)) === 3 && !(await visible("undo-bar")));
+check("undo left the server untouched", JSON.stringify(await serverCounts()) === "[3,1]");
+
+await clickDelete();
+await waitFor(() => visible("undo-bar"));
+await page.evaluate(() => document.getElementById("lock-now-btn").click());
+await waitFor(() => visible("pin-unlock-view"));
+check("locking sends the pending delete, and the photo goes with the entry", await waitFor(async () => JSON.stringify(await serverCounts()) === "[2,0]"), JSON.stringify(await serverCounts()));
 
 await browser.close();
 console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);

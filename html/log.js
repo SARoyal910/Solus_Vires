@@ -42,6 +42,7 @@
   // Locking forgets the key and wipes every decrypted thing from the page,
   // so nothing readable is left in the DOM behind the PIN screen.
   function lockNow() {
+    flushPendingDeletes(true);
     cryptoKey = null;
     pendingConfirmPin = null;
     if (autoLockTimer) clearTimeout(autoLockTimer);
@@ -100,8 +101,9 @@
     if (event.target.type === "file") pickingFilesUntil = 0;
   }, true);
 
+  let rekeyInProgress = false;
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && cryptoKey && Date.now() > pickingFilesUntil) lockNow();
+    if (document.hidden && cryptoKey && Date.now() > pickingFilesUntil && !rekeyInProgress) lockNow();
   });
 
   async function api(path, options = {}) {
@@ -412,20 +414,79 @@
       del.type = "button";
       del.className = "btn danger small";
       del.textContent = "Delete";
-      del.addEventListener("click", async () => {
-        await api(`/api/evidence/entries/${entry.id}`, { method: "DELETE" });
-        for (const p of photosFor(entry.id)) {
-          if (p.url) URL.revokeObjectURL(p.url);
-          state.photos.delete(p.id);
-        }
-        await loadEntries();
-      });
+      del.addEventListener("click", () => queueDelete(entry, card));
       actions.append(del);
       card.append(actions);
       list.append(card);
     }
     applySearch();
   }
+
+  // ---------- Delete with undo (P3-J3) ----------
+  // The entry disappears at once but the request waits 30 seconds, held only
+  // in this page's memory. Undo puts it back; locking, leaving the page or the
+  // timer running out sends the delete. The server never hears about an undo.
+
+  const UNDO_SECONDS = 30;
+  const pendingDeletes = new Map();
+
+  function updateUndoBar() {
+    const bar = document.getElementById("undo-bar");
+    if (pendingDeletes.size === 0) {
+      bar.hidden = true;
+      return;
+    }
+    const soonest = Math.min(...[...pendingDeletes.values()].map((p) => p.deadline));
+    const left = Math.max(0, Math.ceil((soonest - Date.now()) / 1000));
+    const n = pendingDeletes.size;
+    document.getElementById("undo-text").textContent = `${n === 1 ? "Entry" : n + " entries"} deleted. Undo within ${left}s.`;
+    bar.hidden = false;
+  }
+
+  async function sendDelete(id, keepalive = false) {
+    const pending = pendingDeletes.get(id);
+    if (!pending) return;
+    pendingDeletes.delete(id);
+    clearTimeout(pending.timer);
+    try {
+      await fetch(`/api/evidence/entries/${id}`, { method: "DELETE", credentials: "include", keepalive });
+    } catch (e) {
+      // Offline: the entry stays on the server and comes back at next unlock.
+    }
+    for (const p of photosFor(id)) {
+      if (p.url) URL.revokeObjectURL(p.url);
+      state.photos.delete(p.id);
+    }
+    state.entries = state.entries.filter((e) => e.id !== id);
+    pending.card.remove();
+    updateUndoBar();
+  }
+
+  function queueDelete(entry, card) {
+    card.hidden = true;
+    const deadline = Date.now() + UNDO_SECONDS * 1000;
+    const timer = setTimeout(() => sendDelete(entry.id), UNDO_SECONDS * 1000);
+    pendingDeletes.set(entry.id, { card, deadline, timer });
+    updateUndoBar();
+  }
+
+  function undoDeletes() {
+    for (const [id, pending] of pendingDeletes) {
+      clearTimeout(pending.timer);
+      pending.card.hidden = false;
+      pendingDeletes.delete(id);
+    }
+    updateUndoBar();
+    applySearch();
+  }
+
+  function flushPendingDeletes(keepalive = false) {
+    for (const id of [...pendingDeletes.keys()]) sendDelete(id, keepalive);
+  }
+
+  document.getElementById("undo-btn").addEventListener("click", undoDeletes);
+  setInterval(() => { if (pendingDeletes.size) updateUndoBar(); }, 1000);
+  window.addEventListener("pagehide", () => flushPendingDeletes(true));
 
   async function reloadPhotos() {
     const keep = state.photos;
@@ -527,6 +588,119 @@
     button.disabled = busy;
     form.setAttribute("aria-busy", String(busy));
   }
+
+  // ---------- Change PIN (P3-J2) ----------
+  // Everything is decrypted with the current key and re-encrypted with the new
+  // one here, in the browser. Photos are staged one request at a time under a
+  // change id; the final request carries the rest and the server swaps all of
+  // it in one transaction, or refuses and leaves the old key in place.
+
+  const changePinStrength = document.getElementById("change-pin-strength");
+  document.querySelector("#change-pin-form input[name=new_pin]").addEventListener("input", (event) => {
+    const value = event.target.value;
+    if (!value) {
+      changePinStrength.textContent = "";
+      delete changePinStrength.dataset.level;
+      return;
+    }
+    const result = EvidenceCrypto.pinStrength(value);
+    changePinStrength.textContent = result.message;
+    changePinStrength.dataset.level = result.level;
+  });
+
+  document.getElementById("change-pin-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const status = document.getElementById("change-pin-status");
+    const current = form.current_pin.value;
+    const next = form.new_pin.value;
+    if (next !== form.new_pin_confirm.value) {
+      status.textContent = "The new PINs don't match.";
+      return;
+    }
+    if (next.length < EvidenceCrypto.PIN_MIN_LENGTH) {
+      status.textContent = `The new PIN needs at least ${EvidenceCrypto.PIN_MIN_LENGTH} characters.`;
+      return;
+    }
+    if (EvidenceCrypto.pinStrength(next).level === "weak") {
+      status.textContent = "That new PIN is easy to guess. Try a few unrelated words.";
+      return;
+    }
+    if (next === current) {
+      status.textContent = "That's the same PIN.";
+      return;
+    }
+    setBusy(form, true, "Checking…");
+    rekeyInProgress = true;
+    try {
+      const saltData = await (await api("/api/evidence/salt")).json();
+      const oldKey = await EvidenceCrypto.deriveKey(current, saltData.salt);
+      if (!saltData.key_check || !(await EvidenceCrypto.keyMatchesCheck(oldKey, saltData.key_check))) {
+        status.textContent = "That isn't your current PIN.";
+        return;
+      }
+      const newSalt = EvidenceCrypto.generateSaltBase64();
+      const newKey = await EvidenceCrypto.deriveKey(next, newSalt);
+      const rekeyId = crypto.randomUUID();
+
+      // Read everything fresh from the server, so nothing saved from another
+      // device since this page loaded is left behind under the old key.
+      status.textContent = "Reading your notes…";
+      const [profile, plan, entries, photos] = await Promise.all([
+        (await api("/api/evidence/case-profile")).json(),
+        (await api("/api/evidence/safety-plan")).json(),
+        (await api("/api/evidence/entries")).json(),
+        (await api("/api/evidence/attachments")).json(),
+      ]);
+
+      // Every item must decrypt under the current key before anything is
+      // sent; one unreadable item means stop, not "skip it".
+      const body = { rekey_id: rekeyId, salt: newSalt, entries: [], attachments: [] };
+      body.key_check = await EvidenceCrypto.makeKeyCheck(newKey);
+      body.profile = profile ? await EvidenceCrypto.reencryptJSON(oldKey, newKey, profile) : null;
+      body.plan = plan ? await EvidenceCrypto.reencryptJSON(oldKey, newKey, plan) : null;
+      for (let i = 0; i < entries.length; i++) {
+        setBusy(form, true, `Re-encrypting notes (${i + 1} of ${entries.length})…`);
+        const blob = await EvidenceCrypto.reencryptJSON(oldKey, newKey, entries[i]);
+        body.entries.push({ id: entries[i].id, ...blob });
+      }
+      for (let i = 0; i < photos.length; i++) {
+        setBusy(form, true, `Re-encrypting photos (${i + 1} of ${photos.length})…`);
+        const meta = await EvidenceCrypto.reencryptJSON(oldKey, newKey, { ciphertext: photos[i].meta_ciphertext, iv: photos[i].meta_iv });
+        const data = await (await api(`/api/evidence/attachments/${photos[i].id}`)).json();
+        const image = await EvidenceCrypto.reencryptBytes(oldKey, newKey, data);
+        const staged = await api(`/api/evidence/attachments/${photos[i].id}/rekey`, {
+          method: "POST",
+          body: JSON.stringify({ rekey_id: rekeyId, ...image }),
+        });
+        if (!staged.ok) throw new Error("staging failed");
+        body.attachments.push({ id: photos[i].id, meta_ciphertext: meta.ciphertext, meta_iv: meta.iv });
+      }
+
+      setBusy(form, true, "Saving…");
+      const res = await api("/api/evidence/rekey", { method: "POST", body: JSON.stringify(body) });
+      if (res.status === 409) {
+        status.textContent = "Something changed while this ran, so nothing was changed. Try again.";
+        return;
+      }
+      if (!res.ok) throw new Error("rekey failed");
+      cryptoKey = newKey;
+      form.reset();
+      changePinStrength.textContent = "";
+      document.getElementById("short-pin-notice").hidden = true;
+      const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+      status.textContent = `Done. Your PIN is changed and everything (${plural(entries.length, "note")}, ${plural(photos.length, "photo")}) is saved under it. Write the new PIN down.`;
+      scheduleAutoLock();
+    } catch (e) {
+      if (e && e.message === "not authenticated") return;
+      status.textContent = e && e.name === "OperationError"
+        ? "One of your notes couldn't be read with the current PIN, so nothing was changed."
+        : "Couldn't change the PIN right now. Nothing was changed.";
+    } finally {
+      rekeyInProgress = false;
+      setBusy(form, false);
+    }
+  });
 
   const pinStrengthHint = document.getElementById("pin-strength");
   document.querySelector("#pin-setup-form input[name=pin]").addEventListener("input", (event) => {

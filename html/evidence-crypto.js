@@ -126,7 +126,22 @@ function pinStrength(pin) {
   return { level: "ok", message: "OK. Longer is stronger: a few unrelated words work well." };
 }
 
+// PIN change (P3-J2): decrypt under the old key, encrypt under the new one.
+// Pure functions, so tests/web/crypto.test.mjs can hold them to "the
+// plaintext is unchanged and the old key can no longer read the result".
+async function reencryptJSON(oldKey, newKey, blob) {
+  const value = await decryptJSON(oldKey, blob.ciphertext, blob.iv);
+  return encryptJSON(newKey, value);
+}
+
+async function reencryptBytes(oldKey, newKey, blob) {
+  const bytes = await decryptBytes(oldKey, blob.ciphertext, blob.iv);
+  return encryptBytes(newKey, bytes);
+}
+
 window.EvidenceCrypto = {
+  reencryptJSON,
+  reencryptBytes,
   generateSaltBase64,
   deriveKey,
   encryptJSON,

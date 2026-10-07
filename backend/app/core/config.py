@@ -32,6 +32,7 @@ class Settings:
     checkin_alert_loop_enabled: bool
     healthcheck_ping_url: str
     checkin_alert_repeat_hours: int
+    invite_emails_per_day: int
     checkin_token_secret: str
     recovery_code_pepper: str
     trust_proxy_headers: bool
@@ -90,6 +91,9 @@ def get_settings() -> Settings:
         # alert pass, so a stalled loop pages someone. Empty = off.
         healthcheck_ping_url=os.getenv("HEALTHCHECK_PING_URL", "").strip(),
         checkin_alert_repeat_hours=int(os.getenv("CHECKIN_ALERT_REPEAT_HOURS", "6")),
+        # Invite emails one account may send in 24 h (P3-J4). The alert path
+        # shares the email quota; this keeps one account from spending it.
+        invite_emails_per_day=int(os.getenv("INVITE_EMAILS_PER_DAY", "10")),
         checkin_token_secret=os.getenv("CHECKIN_TOKEN_SECRET", ""),
         # Server-side key for recovery-code HMACs. Never change it once codes
         # exist: every code issued under the old value would stop working.
