@@ -8,8 +8,7 @@ How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
 - **Production:** a DigitalOcean droplet behind Cloudflare. It runs the
   Docker Compose stack (nginx, api, Postgres) from the git checkout of
   **`main`** at **`/root/solusvires`**, updated with `scripts/deploy.sh`.
-  Visitors reach it only through Cloudflare. (`/srv/solusvires` on the
-  droplet is an old copy from 2025 that nothing uses; safe to delete.)
+  Visitors reach it only through Cloudflare.
   Secrets live in `/root/solusvires/.env`, which is not in git.
 - **The owner's Mac:** a local copy of the same stack for development and
   testing. Changing it changes nothing on solusvires.com.
@@ -151,7 +150,7 @@ downgrading first, with the *new* image still in place:
 
 **Done 2026-10-04** (`main` at `2b81477`): pepper set, database password
 rotated, migrations 0004 → 0007, smoke green. Kept for the record; the live
-checkout is `/root/solusvires` (`/srv/solusvires` is an old, unused copy).
+checkout is `/root/solusvires` (an old unused copy at `/srv/solusvires` was deleted 2026-10-07).
 From now on a deploy is `scripts/deploy.sh` ("Deploying" above).
 
 This was a one-time change, the first time `main` included P2-A15 and the Lane A hardening
