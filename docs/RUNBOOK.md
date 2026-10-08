@@ -41,6 +41,14 @@ How to deploy, back up, restore, and monitor Solus Vires. Keep this current; the
 - **No "Cache Everything" rule for HTML.** nginx sends pages as `no-cache`
   (private pages `no-store`) and serves a second copy of every page under
   `/plain/`. Cloudflare must keep passing HTML through, not cache it.
+- **Browser Cache TTL: Respect Existing Headers** (Caching > Configuration).
+  nginx sends scripts, styles and images as `no-cache` too, but with a fixed
+  TTL here Cloudflare rewrites that to `max-age=14400` for those file types,
+  so for up to four hours after a deploy browsers run the previous script
+  under the new page. Seen 2026-10-07: the account page's "Create an
+  account" link did nothing until a hard refresh. Check after any change:
+  `curl -sI https://solusvires.com/account.js | grep -i cache-control` must
+  print `no-cache`, not a `max-age`.
 
 ## Content-Security-Policy
 
