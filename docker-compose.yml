@@ -78,6 +78,9 @@ services:
   api:
     logging: *default-logging
     build: ./backend
+    # Named so the alert-worker can run the very same image. One build, two
+    # commands; a deploy that rebuilds the api rebuilds the worker's code too.
+    image: solusvires-api
     container_name: solusvires_api
     restart: unless-stopped
     depends_on:
@@ -128,12 +131,17 @@ services:
   # after every pass is younger than three check intervals.
   alert-worker:
     logging: *default-logging
-    build: ./backend
+    # No build of its own: the api's image, built by scripts/migrate.sh. With a
+    # separate build this service kept yesterday's code through a deploy and
+    # went unhealthy on the new schema (2026-10-07).
+    image: solusvires-api
     container_name: solusvires_alert_worker
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      api:
+        condition: service_started
     environment: *api-environment
     command: ["python", "-m", "app.alert_worker"]
     healthcheck:

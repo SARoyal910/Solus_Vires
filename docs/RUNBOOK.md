@@ -208,6 +208,14 @@ variable so nginx re-resolves it (`nginx/snippets/api-proxy.conf`), and
 right after a deploy while `docker compose ps` is all healthy, that reload
 is the first thing to try.
 
+**And on the Phase 3 deploy (2026-10-07, migrations 0009–0012):** the
+alert-worker came up unhealthy because it had its own image build, which
+`deploy.sh` never rebuilt; it ran the old code against the new schema. Fixed
+by `docker compose build alert-worker && docker compose up -d --wait`, and
+for good by having the worker run the api's image (`image: solusvires-api`,
+no `build`). If a worker is ever unhealthy right after a deploy with the
+api healthy, check `docker compose images` shows both on the same image id.
+
 **Rolling back:** `git checkout` the previous commit and
 `docker compose up -d --wait --remove-orphans` (the flag removes the worker
 container). Migration 0008 can stay applied; nothing before it reads the
