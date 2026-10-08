@@ -401,6 +401,24 @@ Do once after setup, then after any change to monitoring, at a quiet time:
 |---|---|---|---|---|
 | — | Not yet set up | — | — | — |
 
+## Attestation keys (P3-H1)
+
+Exports are signed with the Ed25519 key in `ATTESTATION_PRIVATE_KEY`. An
+export verifies only against the public key that signed it, so every key
+ever used is listed here, with its dates. The private half lives only in
+the droplet's `.env` and the password manager. Rotate yearly: generate a new
+seed, swap it in `.env`, `docker compose up -d --wait`, and add a row.
+`GET /api/evidence/attestation-key` shows the current one; so does
+`/for-advocates.html`.
+
+| Key id | Public key (base64) | In use from | Until |
+|---|---|---|---|
+| `d81f9115` | `T5rz8kxZk/hk5+1hGbDHDTRGw7um8/HG6Ha5ZQuMTVA=` | 2026-10-07 | current |
+
+`CONTACT_NOTE_KEY` (the survivor's message to contacts) was set the same
+day. It is never rotated: a new key would make every existing message
+unreadable, and alerts would go out without them.
+
 ## Backups
 
 Nightly and encrypted. Dumps are encrypted to an **age public key**; the
