@@ -51,7 +51,7 @@ git config user.email "droplet@solusvires.local"
 
 ## Step 1. Monitoring `[ ]`
 
-Half an hour. Runbook section "Monitoring" has the same steps with more detail.
+Half an hour. **Follow `docs/MONITORING_SETUP.md`**, which is this step written out click by click with the exact values; the summary below is the same thing.
 
 **Browser**
 1. uptimerobot.com, free plan, sign up with the operator email. New monitor: type Keyword, URL `https://solusvires.com/api/health`, keyword `ok`, alert when the keyword **does not exist**, interval 5 minutes, alert contact your email.

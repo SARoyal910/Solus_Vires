@@ -5,6 +5,7 @@ Solus Vires is a free, private safety and resource site for anyone being hurt by
 Where things stand: `docs/PROGRESS.md` (what's live), `docs/PHASE2_PLAN.md` (what's next), `docs/RUNBOOK.md` (deploy, backups, restore, monitoring), `docs/THREAT_MODEL.md` (who the site defends against, and how), `docs/INCIDENT_PLAN.md` (what to do when something goes wrong).
 - `docs/SCALE.md`: how far the current setup scales, what fails first, and the staged plan for growing it
 - `docs/PHASE3_PLAN.md`: what comes next, built around being the tool a survivor keeps alongside the hotline they call: public proof, the compromised-phone path, the trusted contact as a user, verifiable evidence, partner referrals
+- `docs/MONITORING_SETUP.md`: the thirty-minute checklist for Healthchecks.io, UptimeRobot and the forced test
 - `docs/DEPLOYPHASE2.md`: the owner's step-by-step list after the 2026-10-07 deploy (monitoring, Postmark, off-site backups, restore drill, canary, second person, review requests)
 - `docs/INVESTOR_PACK.md`: the technical and operational evidence for a partner or investor conversation, with the blanks the owner fills from the dashboards
 
