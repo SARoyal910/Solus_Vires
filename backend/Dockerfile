@@ -1,7 +1,7 @@
 # Pinned by digest so every build uses the same base image; Dependabot
 # (.github/dependabot.yml) proposes a new digest when the image is patched.
 # Python stays on 3.12 to match .python-version and the test stack.
-FROM python:3.12-slim@sha256:dddfd7e07f9d15aeeca61529320492139d21cac7f0070c00609243e51e4e0016
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
 WORKDIR /backend
 
